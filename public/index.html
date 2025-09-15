@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>European Trip</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header>
+    <nav class="nav">
+      <div class="brand">European Trip</div>
+      <div class="links">
+        <a href="#home" id="link-home" class="active">Home</a>
+        <a href="#distances" id="link-distances">View distances</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section id="home">
+      <h1>European Trip</h1>
+      <div class="card">
+        <p>Use the navbar to <strong>View distances</strong> to see cities and their distances from <strong>Berlin</strong>.</p>
+      </div>
+    </section>
+
+    <section id="distances" class="hidden">
+      <h1>Distances from Berlin</h1>
+      <div class="card">
+        <table aria-label="Cities and distances from Berlin">
+          <thead><tr><th>City</th><th>Distance From Berlin (km)</th></tr></thead>
+          <tbody id="dist-body">
+            <tr><td>Amsterdam</td><td>655</td></tr>
+            <tr><td>Andorra la Vella</td><td>1812</td></tr>
+            <tr><td>Athens</td><td>1809</td></tr>
+            <tr><td>Belgrade</td><td>1302</td></tr>
+            <tr><td>Bern</td><td>753</td></tr>
+            <tr><td>Bratislava</td><td>679</td></tr>
+            <tr><td>Brussels</td><td>764</td></tr>
+            <tr><td>Bucharest</td><td>1296</td></tr>
+            <tr><td>Budapest</td><td>688</td></tr>
+            <tr><td>Copenhagen</td><td>355</td></tr>
+            <tr><td>Dublin</td><td>1315</td></tr>
+            <tr><td>Helsinki</td><td>1104</td></tr>
+            <tr><td>Kiev</td><td>1207</td></tr>
+            <tr><td>Lisbon</td><td>2315</td></tr>
+            <tr><td>Ljubljana</td><td>967</td></tr>
+            <tr><td>London</td><td>930</td></tr>
+            <tr><td>Luxembourg</td><td>726</td></tr>
+            <tr><td>Madrid</td><td>1876</td></tr>
+            <tr><td>Monaco</td><td>1186</td></tr>
+            <tr><td>Moscow</td><td>1609</td></tr>
+            <tr><td>Oslo</td><td>838</td></tr>
+            <tr><td>Paris</td><td>1050</td></tr>
+            <tr><td>Podgorica</td><td>1517</td></tr>
+            <tr><td>Prague</td><td>349</td></tr>
+            <tr><td>Reykjavik</td><td>2416</td></tr>
+            <tr><td>Riga</td><td>841</td></tr>
+            <tr><td>Rome</td><td>1184</td></tr>
+            <tr><td>San Marino</td><td>1092</td></tr>
+            <tr><td>Sarajevo</td><td>1212</td></tr>
+            <tr><td>Skopje</td><td>1492</td></tr>
+            <tr><td>Sofia</td><td>1316</td></tr>
+            <tr><td>Stockholm</td><td>810</td></tr>
+            <tr><td>Tallinn</td><td>1043</td></tr>
+            <tr><td>Tirana</td><td>1457</td></tr>
+            <tr><td>Vaduz</td><td>680</td></tr>
+            <tr><td>Valletta</td><td>1866</td></tr>
+            <tr><td>Vienna</td><td>524</td></tr>
+            <tr><td>Vilnius</td><td>817</td></tr>
+            <tr><td>Warsaw</td><td>573</td></tr>
+            <tr><td>Zagreb</td><td>766</td></tr>
+            <tr><td>Zurich</td><td>670</td></tr>
+          </tbody>
+        </table>
+        <p class="hint" id="dist-hint">Loading distances…</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

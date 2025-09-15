@@ -1,0 +1,50 @@
+:root { --ink:#111; --muted:#666; --line:#ddd; --bg:#fafafa; }
+* { box-sizing: border-box; }
+body { 
+  margin:0; 
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; 
+  color:var(--ink); 
+  background:var(--bg); 
+  font-size: 12px; /* global smaller baseline */
+}
+
+/* Header + nav */
+header { position:sticky; top:0; background:#fff; border-bottom:1px solid var(--line); }
+.nav { 
+  max-width:960px; 
+  margin:0 auto; 
+  display:flex; 
+  align-items:center; 
+  justify-content:space-between; 
+  padding:4px 6px; /* reduced */
+}
+.brand { font-weight:800; letter-spacing:.2px; font-size:10px; }
+.links a { 
+  margin-left:6px; 
+  text-decoration:none; 
+  color:var(--ink); 
+  padding:2px 4px; /* reduced */
+  border-radius:4px; 
+  font-size:10px; 
+}
+.links a.active, .links a:hover { background:#f0f0f0; }
+
+/* Main content */
+main { max-width:960px; margin:0 auto; padding:8px; }
+h1 { font-size:16px; margin:8px 0 4px; }
+.card { 
+  background:#fff; 
+  border:1px solid var(--line); 
+  border-radius:8px; 
+  padding:8px; 
+  font-size:10px; 
+}
+
+/* Table */
+table { width:100%; border-collapse: collapse; font-size:10px; }
+th, td { border-bottom:1px solid var(--line); text-align:left; padding:3px; }
+th { font-weight:700; }
+
+/* Helper text */
+.hint { color:var(--muted); font-size:9px; margin-top:4px; }
+.hidden { display:none; }
