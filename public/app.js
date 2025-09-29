@@ -1,6 +1,6 @@
 
 // Simple two-page nav (Home / Distances)
-const routes = ["home", "distances", "foods"];
+const routes = ["home", "distances", "foods", "plan"];
 function show(route) {
   routes.forEach(r => {
     document.getElementById(r).classList.toggle("hidden", r !== route);
@@ -8,6 +8,7 @@ function show(route) {
   });
   if (route === "distances") loadDistances();
   if (route === "foods") initFoods();
+  if (route === "plan") initPlan();
 }
 
 // --- Foods data (parsed from the provided spreadsheet; up to six items per city) ---
@@ -191,3 +192,126 @@ document.addEventListener('DOMContentLoaded', () => {
   const initial = (location.hash || '#home').slice(1) || 'home';
   show(initial);
 });
+
+// --- Trip planner (Paris start, visit 11 cities) ---
+const PLAN_CITIES = [
+  // Paris is fixed start; rest will be visited efficiently
+  "Paris",
+  "Amsterdam", "Brussels", "London", "Madrid", "Rome",
+  "Vienna", "Prague", "Zurich", "Budapest", "Copenhagen", "Lisbon"
+];
+
+// Latitude/Longitude (approximate city centers)
+const CITY_LATLON = {
+  Paris: [48.8566, 2.3522],
+  Amsterdam: [52.3676, 4.9041],
+  Brussels: [50.8503, 4.3517],
+  London: [51.5074, -0.1278],
+  Madrid: [40.4168, -3.7038],
+  Rome: [41.9028, 12.4964],
+  Vienna: [48.2082, 16.3738],
+  Prague: [50.0755, 14.4378],
+  Zurich: [47.3769, 8.5417],
+  Budapest: [47.4979, 19.0402],
+  Copenhagen: [55.6761, 12.5683],
+  Lisbon: [38.7223, -9.1393]
+};
+
+function haversineKm(a, b) {
+  const R = 6371; // km
+  const [lat1, lon1] = a.map(x => x * Math.PI / 180);
+  const [lat2, lon2] = b.map(x => x * Math.PI / 180);
+  const dlat = lat2 - lat1;
+  const dlon = lon2 - lon1;
+  const s = Math.sin(dlat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dlon/2)**2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+function buildMatrix(cities) {
+  const n = cities.length;
+  const M = Array.from({length:n}, () => Array(n).fill(0));
+  for (let i=0;i<n;i++) {
+    for (let j=i+1;j<n;j++) {
+      const dij = haversineKm(CITY_LATLON[cities[i]], CITY_LATLON[cities[j]]);
+      M[i][j] = M[j][i] = dij;
+    }
+  }
+  return M;
+}
+
+// Nearest Neighbor from fixed start at index 0 (Paris)
+function nearestNeighborOrder(M) {
+  const n = M.length;
+  const visited = Array(n).fill(false);
+  const order = [0];
+  visited[0] = true;
+  for (let step=1; step<n; step++) {
+    const last = order[order.length-1];
+    let best = -1, bestD = Infinity;
+    for (let j=0;j<n;j++) if (!visited[j]) {
+      const d = M[last][j];
+      if (d < bestD) { bestD = d; best = j; }
+    }
+    visited[best] = true; order.push(best);
+  }
+  return order; // open path (do not return to Paris)
+}
+
+// 2-opt improvement for an open path (keeps first node fixed)
+function twoOptOpen(order, M, maxIter=2000) {
+  const n = order.length;
+  function pathLen(ord) {
+    let s=0; for (let i=0;i<n-1;i++) s += M[ord[i]][ord[i+1]]; return s;
+  }
+  let best = order.slice();
+  let bestLen = pathLen(best);
+  let improved = true, iter=0;
+  while (improved && iter < maxIter) {
+    improved = false; iter++;
+    for (let i=1;i<n-2;i++) {
+      for (let k=i+1;k<n-1;k++) {
+        const a=best[i-1], b=best[i], c=best[k], d=best[k+1];
+        const delta = (M[a][c] + M[b][d]) - (M[a][b] + M[c][d]);
+        if (delta < -1e-6) {
+          const seg = best.slice(i, k+1).reverse();
+          best.splice(i, k-i+1, ...seg);
+          bestLen += delta;
+          improved = true;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function renderPlan(cities, order, M) {
+  const tbody = document.getElementById('plan-body');
+  const totalP = document.getElementById('plan-total');
+  tbody.innerHTML = '';
+  let total = 0;
+  for (let i=0;i<order.length;i++) {
+    const idx = order[i];
+    const city = cities[idx];
+    const leg = i===0 ? 0 : M[order[i-1]][idx];
+    if (i>0) total += leg;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i+1}</td><td>${city}</td><td>${i===0?'-':Math.round(leg)}</td>`;
+    tbody.appendChild(tr);
+  }
+  totalP.textContent = `Total distance (no return to start): ${Math.round(total)} km`;
+}
+
+let planInitDone = false;
+function initPlan() {
+  if (planInitDone) return;
+  const btn = document.getElementById('plan-btn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const cities = PLAN_CITIES.slice();
+    const M = buildMatrix(cities);
+    let order = nearestNeighborOrder(M);
+    order = twoOptOpen(order, M, 1500);
+    renderPlan(cities, order, M);
+  });
+  planInitDone = true;
+}

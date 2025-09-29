@@ -14,6 +14,8 @@
         <a href="#home" id="link-home" class="active">Home</a>
         <a href="#distances" id="link-distances">View distances</a>
         <a href="#foods" id="link-foods">View foods</a>
+        <a href="#plan" id="link-plan">Plan trip</a>
+        <a href="#plan-london" id="link-plan-london">Plan London trip</a>
       </div>
     </nav>
   </header>
@@ -22,7 +24,7 @@
     <section id="home">
       <h1>European Trip</h1>
       <div class="card">
-        <p>Use the navbar to <strong>View distances</strong> to see cities and their distances from <strong>Berlin</strong>.</p>
+        <p>Use the navbar to <strong>View all</strong> programs to help you with your <strong>European Vacation</strong>.</p>
       </div>
     </section>
 
@@ -99,6 +101,24 @@
         </table>
         <p class="hint" id="foods-hint">Click a city to view up to six traditional foods and prices in USD.</p>
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- PLAN TRIP (Paris -> 11 cities) -->
+<section id="plan" class="hidden">
+  <h1>Plan Efficient Trip (Start: Paris)</h1>
+  <div class="card">
+    <p class="hint">This computes a near-optimal route starting in <strong>Paris</strong> and visiting 11 cities using geographic distances.</p>
+    <button id="plan-btn" style="padding:6px 10px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">Compute route</button>
+    <div id="plan-output" style="margin-top:10px;">
+      <table aria-label="Planned route and distances">
+        <thead>
+          <tr><th>#</th><th>City</th><th>Leg Distance (km)</th></tr>
+        </thead>
+        <tbody id="plan-body"></tbody>
+      </table>
+      <p class="hint" id="plan-total"></p>
     </div>
   </div>
 </section>
