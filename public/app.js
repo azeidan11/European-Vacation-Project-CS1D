@@ -1,3 +1,4 @@
+
 // Simple two-page nav (Home / Distances)
 const routes = ["home", "distances", "foods"];
 function show(route) {
@@ -8,51 +9,6 @@ function show(route) {
   if (route === "distances") loadDistances();
   if (route === "foods") initFoods();
 }
-window.addEventListener("hashchange", () => {
-  const r = (location.hash || "#home").slice(1);
-  show(routes.includes(r) ? r : "home");
-});
-
-let loaded = false;
-async function loadDistances() {
-  if (loaded) return;
-  const hint = document.getElementById("dist-hint");
-  const tbody = document.getElementById("dist-body");
-  try {
-    // NOTE the ./ prefix; Live Server will serve /server/distances.csv at /server/distances.csv
-    const res = await fetch("./server/distances.csv", { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-
-    const lines = text.trim().split(/\r?\n/);
-    if (lines.length < 2) throw new Error("CSV has no rows");
-
-    // Expect header: City,DistanceFromBerlin(km)
-    tbody.innerHTML = "";
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      const comma = line.indexOf(",");
-      if (comma < 0) continue;
-
-      const city = line.slice(0, comma).trim();
-      const dist = line.slice(comma + 1).trim().replace(/[^0-9]/g, "");
-      if (!city || !dist) continue;
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${city}</td><td>${dist}</td>`;
-      tbody.appendChild(tr);
-    }
-    hint.textContent = "Loaded City / DistanceFromBerlin (km).";
-    loaded = true;
-  } catch (err) {
-    console.error(err);
-    hint.textContent = "";
-  }
-}
-
-// Initial screen
-show((location.hash || "#home").slice(1) || "home");
 
 // --- Foods data (parsed from the provided spreadsheet; up to six items per city) ---
 const foodsData = {
@@ -185,3 +141,53 @@ function initFoods() {
 
   foodsInitDone = true;
 }
+window.addEventListener("hashchange", () => {
+  const r = (location.hash || "#home").slice(1);
+  show(routes.includes(r) ? r : "home");
+});
+
+let loaded = false;
+async function loadDistances() {
+  if (loaded) return;
+  const hint = document.getElementById("dist-hint");
+  const tbody = document.getElementById("dist-body");
+  try {
+    // NOTE the ./ prefix; Live Server will serve /server/distances.csv at /server/distances.csv
+    const res = await fetch("./server/distances.csv", { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) throw new Error("CSV has no rows");
+
+    // Expect header: City,DistanceFromBerlin(km)
+    tbody.innerHTML = "";
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const comma = line.indexOf(",");
+      if (comma < 0) continue;
+
+      const city = line.slice(0, comma).trim();
+      const dist = line.slice(comma + 1).trim().replace(/[^0-9]/g, "");
+      if (!city || !dist) continue;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${city}</td><td>${dist}</td>`;
+      tbody.appendChild(tr);
+    }
+    hint.textContent = "Loaded City / DistanceFromBerlin (km).";
+    loaded = true;
+  } catch (err) {
+    console.error(err);
+    hint.textContent = "";
+  }
+}
+
+
+// Ensure foods list exists only after DOM is ready and foodsData is defined, then show initial route
+document.addEventListener('DOMContentLoaded', () => {
+  try { initFoods(); } catch (e) { console.error(e); }
+  const initial = (location.hash || '#home').slice(1) || 'home';
+  show(initial);
+});
