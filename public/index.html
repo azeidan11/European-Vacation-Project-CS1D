@@ -13,6 +13,7 @@
       <div class="links">
         <a href="#home" id="link-home" class="active">Home</a>
         <a href="#distances" id="link-distances">View distances</a>
+        <a href="#foods" id="link-foods">View foods</a>
       </div>
     </nav>
   </header>
@@ -77,6 +78,31 @@
         <p class="hint" id="dist-hint">Loading distances…</p>
       </div>
     </section>
+
+    <!-- FOODS -->
+<section id="foods" class="hidden">
+  <h1>Traditional Foods by City</h1>
+  <div class="card">
+    <div style="display:flex; gap:16px; align-items:flex-start;">
+      <aside style="min-width:220px;">
+        <h2 style="margin:0 0 8px; font-size:16px;">Cities</h2>
+        <div id="foods-cities" aria-label="City list" style="display:flex; flex-direction:column; gap:6px;"></div>
+      </aside>
+      <div style="flex:1;">
+        <h2 id="foods-city-title" style="margin:0 0 8px; font-size:16px;">Select a city</h2>
+        <input id="foods-search" type="text" placeholder="Search food items..." style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:8px; font-size:12px; margin:0 0 10px;" />
+        <table aria-label="Food items and prices">
+          <thead>
+            <tr><th>Food Item</th><th>Price (USD)</th></tr>
+          </thead>
+          <tbody id="foods-body"></tbody>
+        </table>
+        <p class="hint" id="foods-hint">Click a city to view up to six traditional foods and prices in USD.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
   </main>
 
   <script src="./app.js"></script>
