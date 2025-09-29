@@ -1,6 +1,6 @@
 
 // Simple two-page nav (Home / Distances)
-const routes = ["home", "distances", "foods", "plan"];
+const routes = ["home", "distances", "foods", "plan", "plan-london"];
 function show(route) {
   routes.forEach(r => {
     document.getElementById(r).classList.toggle("hidden", r !== route);
@@ -9,6 +9,7 @@ function show(route) {
   if (route === "distances") loadDistances();
   if (route === "foods") initFoods();
   if (route === "plan") initPlan();
+  if (route === "plan-london") initLondonPlan();
 }
 
 // --- Foods data (parsed from the provided spreadsheet; up to six items per city) ---
@@ -314,4 +315,295 @@ function initPlan() {
     renderPlan(cities, order, M);
   });
   planInitDone = true;
+}
+
+// -------------------- London Trip Planner (Shortest with food purchases) --------------------
+const LON_START = "London";
+
+// Cities available for selection (ensure they exist in CITY_LATLON and ideally foodsData)
+const LON_CHOOSABLE_CITIES = [
+  "Paris","Amsterdam","Brussels","Madrid","Rome",
+  "Vienna","Prague","Zurich","Budapest","Copenhagen","Lisbon"
+];
+
+// Fallback for lat/lon if not already defined somewhere else
+window.CITY_LATLON = window.CITY_LATLON || {
+  London: [51.5074, -0.1278],
+  Paris: [48.8566, 2.3522],
+  Amsterdam: [52.3676, 4.9041],
+  Brussels: [50.8503, 4.3517],
+  Madrid: [40.4168, -3.7038],
+  Rome: [41.9028, 12.4964],
+  Vienna: [48.2082, 16.3738],
+  Prague: [50.0755, 14.4378],
+  Zurich: [47.3769, 8.5417],
+  Budapest: [47.4979, 19.0402],
+  Copenhagen: [55.6761, 12.5683],
+  Lisbon: [38.7223, -9.1393]
+};
+
+// Fallback foodsData if missing (keep it minimal; you already have a richer foodsData)
+window.foodsData = window.foodsData || {
+  London: [
+    { item: "Fish and Chips", price: "$11.40" },
+    { item: "Full English Breakfast", price: "$12.80" },
+    { item: "Sticky Toffee Pudding", price: "$6.90" }
+  ],
+  Paris: [
+    { item: "Crêpe", price: "$5.10" },
+    { item: "Croissant", price: "$2.40" },
+    { item: "Macarons", price: "$7.30" }
+  ],
+  Amsterdam: [
+    { item: "Stroopwafel", price: "$5.76" },
+    { item: "Thick Dutch fries", price: "$3.21" },
+    { item: "Kibbeling", price: "$8.65" }
+  ],
+  Brussels: [
+    { item: "Belgian Waffles", price: "$4.56" },
+    { item: "Mussels & Fries", price: "$12.50" }
+  ],
+  Madrid: [
+    { item: "Churros con Chocolate", price: "$4.30" },
+    { item: "Bocadillo de Calamares", price: "$7.50" }
+  ],
+  Rome: [
+    { item: "Margherita Pizza", price: "$9.00" },
+    { item: "Cacio e Pepe", price: "$11.20" }
+  ],
+  Vienna: [
+    { item: "Sachertorte", price: "$6.80" },
+    { item: "Wiener Schnitzel", price: "$13.20" }
+  ],
+  Prague: [
+    { item: "Trdelník", price: "$4.00" },
+    { item: "Svíčková", price: "$10.90" }
+  ],
+  Zurich: [
+    { item: "Rösti", price: "$8.50" },
+    { item: "Fondue", price: "$14.30" }
+  ],
+  Budapest: [
+    { item: "Goulash", price: "$9.10" },
+    { item: "Lángos", price: "$5.30" }
+  ],
+  Copenhagen: [
+    { item: "Smørrebrød", price: "$8.40" },
+    { item: "Cinnamon Bun", price: "$3.90" }
+  ],
+  Lisbon: [
+    { item: "Pastel de Nata", price: "$2.10" },
+    { item: "Bifana", price: "$5.20" }
+  ]
+};
+
+// Haversine (namespaced to avoid clashes)
+function LON_haversineKm(a, b) {
+  const R = 6371;
+  const [lat1, lon1] = a.map(x => x * Math.PI / 180);
+  const [lat2, lon2] = b.map(x => x * Math.PI / 180);
+  const dlat = lat2 - lat1;
+  const dlon = lon2 - lon1;
+  const s = Math.sin(dlat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dlon/2)**2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+function LON_buildMatrix(cities) {
+  const n = cities.length;
+  const M = Array.from({length:n}, () => Array(n).fill(0));
+  for (let i=0;i<n;i++) {
+    for (let j=i+1;j<n;j++) {
+      const dij = LON_haversineKm(CITY_LATLON[cities[i]], CITY_LATLON[cities[j]]);
+      M[i][j] = M[j][i] = dij;
+    }
+  }
+  return M;
+}
+
+// Nearest Neighbor (fixed start index 0: London)
+function LON_nearestNeighbor(M) {
+  const n = M.length;
+  const visited = Array(n).fill(false);
+  const order = [0];
+  visited[0] = true;
+  for (let step=1; step<n; step++) {
+    const last = order[order.length-1];
+    let best = -1, bestD = Infinity;
+    for (let j=0;j<n;j++) if (!visited[j]) {
+      const d = M[last][j];
+      if (d < bestD) { bestD = d; best = j; }
+    }
+    visited[best] = true; order.push(best);
+  }
+  return order;
+}
+
+// 2-opt improvement for open path (keeps first node fixed)
+function LON_twoOpt(order, M, maxIter=1500) {
+  const n = order.length;
+  function pathLen(ord) { let s=0; for (let i=0;i<n-1;i++) s += M[ord[i]][ord[i+1]]; return s; }
+  let best = order.slice();
+  let bestLen = pathLen(best);
+  let improved = true, iter = 0;
+  while (improved && iter < maxIter) {
+    improved = false; iter++;
+    for (let i=1;i<n-2;i++) {
+      for (let k=i+1;k<n-1;k++) {
+        const a=best[i-1], b=best[i], c=best[k], d=best[k+1];
+        const delta = (M[a][c] + M[b][d]) - (M[a][b] + M[c][d]);
+        if (delta < -1e-6) {
+          const seg = best.slice(i, k+1).reverse();
+          best.splice(i, k-i+1, ...seg);
+          bestLen += delta;
+          improved = true;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function LON_renderRoute(cities, order, M) {
+  const tbody = document.getElementById('lon-route-body');
+  const totalP = document.getElementById('lon-route-total');
+  tbody.innerHTML = '';
+  let totalKm = 0;
+  for (let i=0;i<order.length;i++) {
+    const idx = order[i];
+    const city = cities[idx];
+    const leg = i===0 ? 0 : M[order[i-1]][idx];
+    if (i>0) totalKm += leg;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i+1}</td><td>${city}</td><td>${i===0?'-':Math.round(leg)}</td>`;
+    tbody.appendChild(tr);
+  }
+  totalP.textContent = `Total distance (no return to start): ${Math.round(totalKm)} km`;
+  return totalKm;
+}
+
+// Simple price parser like "$12.50" -> 12.50
+function LON_parseUSD(s) {
+  if (!s) return 0;
+  const n = parseFloat(String(s).replace(/[^0-9.]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+// Render food purchase panel for the visited cities
+function LON_renderFoods(visitedCities, onTotalsChanged) {
+  const mount = document.getElementById('lon-foods');
+  mount.innerHTML = '';
+
+  visitedCities.forEach(city => {
+    const items = (foodsData[city] || []).slice(0, 6);
+    const section = document.createElement('div');
+    section.style.marginTop = '10px';
+    section.innerHTML = `
+      <h3 style="margin:6px 0;">${city}</h3>
+      <table>
+        <thead><tr><th>Food</th><th>Price (USD)</th><th>Qty</th><th>Subtotal</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    `;
+    const tbody = section.querySelector('tbody');
+
+    items.forEach(({item, price}) => {
+      const tr = document.createElement('tr');
+      const unit = LON_parseUSD(price);
+      tr.innerHTML = `
+        <td>${item}</td>
+        <td>${price}</td>
+        <td><input type="number" min="0" max="9" value="0" style="width:60px; padding:2px 4px; border:1px solid #ddd; border-radius:6px;"></td>
+        <td class="lon-sub">$0.00</td>
+      `;
+      const qtyEl = tr.querySelector('input');
+      const subEl = tr.querySelector('.lon-sub');
+      const recalc = () => {
+        const qty = Math.max(0, Math.min(9, parseInt(qtyEl.value || '0', 10) || 0));
+        const sub = unit * qty;
+        subEl.textContent = `$${sub.toFixed(2)}`;
+        onTotalsChanged();
+      };
+      qtyEl.addEventListener('input', recalc);
+      tbody.appendChild(tr);
+    });
+
+    mount.appendChild(section);
+  });
+}
+
+function LON_computeFoodTotalUSD() {
+  let sum = 0;
+  document.querySelectorAll('#lon-foods .lon-sub').forEach(td => {
+    const v = LON_parseUSD(td.textContent);
+    sum += v;
+  });
+  return sum;
+}
+
+let lonInitDone = false;
+function initLondonPlan() {
+  if (lonInitDone) return;
+
+  // Build checkbox list
+  const chooser = document.getElementById('lon-city-chooser');
+  chooser.innerHTML = '';
+  LON_CHOOSABLE_CITIES.forEach(city => {
+    const id = `lon-choose-${city.replace(/\\s+/g,'-').toLowerCase()}`;
+    const label = document.createElement('label');
+    label.style.display = 'flex';
+    label.style.alignItems = 'center';
+    label.style.gap = '6px';
+    label.innerHTML = `<input type="checkbox" id="${id}" value="${city}"> ${city}`;
+    chooser.appendChild(label);
+  });
+
+  const costEl = document.getElementById('lon-costkm');
+  const routeBody = document.getElementById('lon-route-body');
+  const routeTotalEl = document.getElementById('lon-route-total');
+  const foodTotalEl = document.getElementById('lon-food-total');
+  const grandTotalEl = document.getElementById('lon-grand-total');
+
+  const recomputeGrand = (totalKm) => {
+    const foodUSD = LON_computeFoodTotalUSD();
+    const costPerKm = parseFloat(costEl.value || '0') || 0;
+    const distanceUSD = totalKm * costPerKm;
+    foodTotalEl.textContent = `Food total: $${foodUSD.toFixed(2)}`;
+    grandTotalEl.textContent = `Grand total: $${(foodUSD + distanceUSD).toFixed(2)} (includes distance cost $${distanceUSD.toFixed(2)})`;
+  };
+
+  document.getElementById('lon-plan-btn').addEventListener('click', () => {
+    // Gather selected cities
+    const selected = Array.from(chooser.querySelectorAll('input[type="checkbox"]:checked'))
+      .map(cb => cb.value);
+
+    // Validate: must choose at least 1 city (besides London)
+    if (selected.length === 0) {
+      routeBody.innerHTML = '';
+      routeTotalEl.textContent = 'Please select at least one city.';
+      document.getElementById('lon-foods').innerHTML = '';
+      foodTotalEl.textContent = '';
+      grandTotalEl.textContent = '';
+      return;
+    }
+
+    // City list starting with London
+    const cities = [LON_START, ...selected];
+
+    // Compute route (Nearest Neighbor + 2-opt) using haversine distances
+    const M = LON_buildMatrix(cities);
+    let order = LON_nearestNeighbor(M);
+    order = LON_twoOpt(order, M, 1500);
+
+    // Render route and get total km
+    const totalKm = LON_renderRoute(cities, order, M);
+
+    // Render food purchase panels for visited cities, excluding London if you want only visited-after-start:
+    const visitedCities = order.map(i => cities[i]); // includes "London" first
+    LON_renderFoods(visitedCities, () => recomputeGrand(totalKm));
+
+    // Initial totals
+    recomputeGrand(totalKm);
+  });
+
+  lonInitDone = true;
 }
