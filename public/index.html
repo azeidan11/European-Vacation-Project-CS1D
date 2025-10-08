@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -77,7 +77,7 @@
             <tr><td>Zurich</td><td>670</td></tr>
           </tbody>
         </table>
-        <p class="hint" id="dist-hint">Loading distances…</p>
+        <p class="hint" id="dist-hint">Loading distancesâ€¦</p>
       </div>
     </section>
 
@@ -128,17 +128,22 @@
   <h1>Plan Shortest Trip (Start: London)</h1>
   <div class="card">
     <p class="hint">
-      Start in <strong>London</strong>, choose the cities to visit, compute an efficient route,
-      and select food purchases. Total cost = (distance × cost/km) + food totals.
+      Start in <strong>London</strong>, choose how many European cities to include, follow the nearest-city route,
+      and select food purchases. Total cost = (distance * cost/km) + food totals.
     </p>
 
     <!-- Controls -->
     <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
-      <!-- City chooser -->
+      <!-- Trip settings -->
       <div style="min-width:240px; flex:1 1 260px;">
-        <h2 style="margin:0 0 8px; font-size:16px;">Select cities to visit</h2>
-        <div id="lon-city-chooser" style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;"></div>
-        <p class="hint">London is fixed as the starting city.</p>
+        <h2 style="margin:0 0 8px; font-size:16px;">Trip settings</h2>
+        <label style="display:block; margin-bottom:6px;">
+          Number of cities to visit (including London):
+          <input id="lon-city-count" type="number" min="1" value="5"
+                 style="margin-left:8px; width:90px; padding:4px 6px; border:1px solid #ddd; border-radius:8px;">
+        </label>
+        <p class="hint" id="lon-city-range"></p>
+        <p class="hint" id="lon-city-list"></p>
       </div>
 
       <!-- Cost per km -->
@@ -183,3 +188,5 @@
   <script src="./app.js"></script>
 </body>
 </html>
+
+

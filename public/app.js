@@ -1,4 +1,4 @@
-
+﻿
 // Simple two-page nav (Home / Distances)
 const routes = ["home", "distances", "foods", "plan", "plan-london"];
 function show(route) {
@@ -33,20 +33,20 @@ const foodsData = {
   ],
   "Budapest": [
     { item: "Goulash", price: "$9.10" },
-    { item: "Kürtőskalács (Chimney Cake)", price: "$4.20" },
-    { item: "Lángos", price: "$5.30" },
+    { item: "KÃ¼rtÅ‘skalÃ¡cs (Chimney Cake)", price: "$4.20" },
+    { item: "LÃ¡ngos", price: "$5.30" },
     { item: "Dobos Torte", price: "$4.80" }
   ],
   "Hamburg": [
-    { item: "Franzbrötchen", price: "$3.10" },
-    { item: "Fischbrötchen", price: "$5.95" },
+    { item: "FranzbrÃ¶tchen", price: "$3.10" },
+    { item: "FischbrÃ¶tchen", price: "$5.95" },
     { item: "Labskaus", price: "$11.20" },
-    { item: "Rote Grütze", price: "$4.35" }
+    { item: "Rote GrÃ¼tze", price: "$4.35" }
   ],
   "Lisbon": [
     { item: "Pastel de Nata", price: "$2.10" },
     { item: "Bifana", price: "$5.20" },
-    { item: "Bacalhau à Brás", price: "$10.60" }
+    { item: "Bacalhau Ã  BrÃ¡s", price: "$10.60" }
   ],
   "London": [
     { item: "Fish and Chips", price: "$11.40" },
@@ -56,29 +56,29 @@ const foodsData = {
   "Madrid": [
     { item: "Churros con Chocolate", price: "$4.30" },
     { item: "Bocadillo de Calamares", price: "$7.50" },
-    { item: "Tortilla Española", price: "$6.20" }
+    { item: "Tortilla EspaÃ±ola", price: "$6.20" }
   ],
   "Paris": [
-    { item: "Crêpe", price: "$5.10" },
+    { item: "CrÃªpe", price: "$5.10" },
     { item: "Croissant", price: "$2.40" },
     { item: "Macarons", price: "$7.30" },
     { item: "Onion Soup", price: "$9.80" }
   ],
   "Prague": [
-    { item: "Trdelník", price: "$4.00" },
-    { item: "Svíčková", price: "$10.90" },
-    { item: "Knedlíky", price: "$3.70" },
-    { item: "Palačinky", price: "$4.60" }
+    { item: "TrdelnÃ­k", price: "$4.00" },
+    { item: "SvÃ­ÄkovÃ¡", price: "$10.90" },
+    { item: "KnedlÃ­ky", price: "$3.70" },
+    { item: "PalaÄinky", price: "$4.60" }
   ],
   "Rome": [
     { item: "Margherita Pizza", price: "$9.00" },
     { item: "Cacio e Pepe", price: "$11.20" },
     { item: "Gelato", price: "$3.50" },
     { item: "Tiramisu", price: "$5.80" },
-    { item: "Supplì", price: "$3.90" }
+    { item: "SupplÃ¬", price: "$3.90" }
   ],
   "Stockholm": [
-    { item: "Köttbullar (Meatballs)", price: "$12.30" },
+    { item: "KÃ¶ttbullar (Meatballs)", price: "$12.30" },
     { item: "Cinnamon Bun (Kanelbulle)", price: "$3.90" },
     { item: "Gravlax", price: "$10.50" }
   ],
@@ -350,7 +350,7 @@ window.foodsData = window.foodsData || {
     { item: "Sticky Toffee Pudding", price: "$6.90" }
   ],
   Paris: [
-    { item: "Crêpe", price: "$5.10" },
+    { item: "CrÃªpe", price: "$5.10" },
     { item: "Croissant", price: "$2.40" },
     { item: "Macarons", price: "$7.30" }
   ],
@@ -376,19 +376,19 @@ window.foodsData = window.foodsData || {
     { item: "Wiener Schnitzel", price: "$13.20" }
   ],
   Prague: [
-    { item: "Trdelník", price: "$4.00" },
-    { item: "Svíčková", price: "$10.90" }
+    { item: "TrdelnÃ­k", price: "$4.00" },
+    { item: "SvÃ­ÄkovÃ¡", price: "$10.90" }
   ],
   Zurich: [
-    { item: "Rösti", price: "$8.50" },
+    { item: "RÃ¶sti", price: "$8.50" },
     { item: "Fondue", price: "$14.30" }
   ],
   Budapest: [
     { item: "Goulash", price: "$9.10" },
-    { item: "Lángos", price: "$5.30" }
+    { item: "LÃ¡ngos", price: "$5.30" }
   ],
   Copenhagen: [
-    { item: "Smørrebrød", price: "$8.40" },
+    { item: "SmÃ¸rrebrÃ¸d", price: "$8.40" },
     { item: "Cinnamon Bun", price: "$3.90" }
   ],
   Lisbon: [
@@ -418,6 +418,40 @@ function LON_buildMatrix(cities) {
     }
   }
   return M;
+}
+
+// Build a greedy path that always visits the closest unvisited city next
+function LON_planGreedy(count) {
+  const usableCities = LON_CHOOSABLE_CITIES.filter(city => CITY_LATLON[city]);
+  const desired = Math.min(Math.max(1, count || 0), usableCities.length + 1);
+  if (desired <= 0) return [];
+
+  const route = [LON_START];
+  if (desired === 1) return route;
+
+  const remaining = usableCities.slice();
+  let current = LON_START;
+
+  while (route.length < desired && remaining.length) {
+    let bestIdx = -1;
+    let bestDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const candidate = remaining[i];
+      const dist = LON_haversineKm(CITY_LATLON[current], CITY_LATLON[candidate]);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIdx = i;
+      }
+    }
+
+    if (bestIdx === -1) break;
+
+    const nextCity = remaining.splice(bestIdx, 1)[0];
+    route.push(nextCity);
+    current = nextCity;
+  }
+
+  return route;
 }
 
 // Nearest Neighbor (fixed start index 0: London)
@@ -544,66 +578,101 @@ let lonInitDone = false;
 function initLondonPlan() {
   if (lonInitDone) return;
 
-  // Build checkbox list
-  const chooser = document.getElementById('lon-city-chooser');
-  chooser.innerHTML = '';
-  LON_CHOOSABLE_CITIES.forEach(city => {
-    const id = `lon-choose-${city.replace(/\\s+/g,'-').toLowerCase()}`;
-    const label = document.createElement('label');
-    label.style.display = 'flex';
-    label.style.alignItems = 'center';
-    label.style.gap = '6px';
-    label.innerHTML = `<input type="checkbox" id="${id}" value="${city}"> ${city}`;
-    chooser.appendChild(label);
-  });
-
+  const countEl = document.getElementById('lon-city-count');
+  const rangeEl = document.getElementById('lon-city-range');
+  const listEl = document.getElementById('lon-city-list');
   const costEl = document.getElementById('lon-costkm');
   const routeBody = document.getElementById('lon-route-body');
   const routeTotalEl = document.getElementById('lon-route-total');
+  const foodMount = document.getElementById('lon-foods');
   const foodTotalEl = document.getElementById('lon-food-total');
   const grandTotalEl = document.getElementById('lon-grand-total');
+  const planBtn = document.getElementById('lon-plan-btn');
+  const maxCities = LON_CHOOSABLE_CITIES.filter(city => CITY_LATLON[city]).length + 1;
 
-  const recomputeGrand = (totalKm) => {
+  if (countEl) {
+    countEl.max = maxCities;
+    if (!countEl.value) {
+      countEl.value = String(Math.min(5, maxCities));
+    }
+  }
+  if (rangeEl) {
+    rangeEl.textContent = `Choose between 1 and ${maxCities} cities. London is always the starting city.`;
+  }
+  if (listEl) {
+    listEl.textContent = `Other cities considered: ${LON_CHOOSABLE_CITIES.join(', ')}.`;
+  }
+
+  let lastTotalKm = 0;
+
+  const recomputeGrand = () => {
     const foodUSD = LON_computeFoodTotalUSD();
-    const costPerKm = parseFloat(costEl.value || '0') || 0;
-    const distanceUSD = totalKm * costPerKm;
-    foodTotalEl.textContent = `Food total: $${foodUSD.toFixed(2)}`;
-    grandTotalEl.textContent = `Grand total: $${(foodUSD + distanceUSD).toFixed(2)} (includes distance cost $${distanceUSD.toFixed(2)})`;
+    const costPerKm = parseFloat(costEl && costEl.value ? costEl.value : '0') || 0;
+    const distanceUSD = lastTotalKm * costPerKm;
+    if (foodTotalEl) {
+      foodTotalEl.textContent = `Food total: $${foodUSD.toFixed(2)}`;
+    }
+    if (grandTotalEl) {
+      grandTotalEl.textContent = `Grand total: $${(foodUSD + distanceUSD).toFixed(2)} (includes distance cost $${distanceUSD.toFixed(2)})`;
+    }
   };
 
-  document.getElementById('lon-plan-btn').addEventListener('click', () => {
-    // Gather selected cities
-    const selected = Array.from(chooser.querySelectorAll('input[type="checkbox"]:checked'))
-      .map(cb => cb.value);
+  if (costEl) {
+    costEl.addEventListener('input', recomputeGrand);
+  }
 
-    // Validate: must choose at least 1 city (besides London)
-    if (selected.length === 0) {
-      routeBody.innerHTML = '';
-      routeTotalEl.textContent = 'Please select at least one city.';
-      document.getElementById('lon-foods').innerHTML = '';
-      foodTotalEl.textContent = '';
-      grandTotalEl.textContent = '';
-      return;
-    }
+  if (planBtn) {
+    planBtn.addEventListener('click', () => {
+      if (!routeBody || !routeTotalEl || !foodMount) return;
 
-    // City list starting with London
-    const cities = [LON_START, ...selected];
+      const requested = parseInt(countEl ? countEl.value : '0', 10);
+      if (isNaN(requested) || requested < 1) {
+        routeBody.innerHTML = '';
+        routeTotalEl.textContent = 'Enter how many cities you want to visit (minimum 1).';
+        foodMount.innerHTML = '';
+        if (foodTotalEl) foodTotalEl.textContent = '';
+        if (grandTotalEl) grandTotalEl.textContent = '';
+        lastTotalKm = 0;
+        return;
+      }
 
-    // Compute route (Nearest Neighbor + 2-opt) using haversine distances
-    const M = LON_buildMatrix(cities);
-    let order = LON_nearestNeighbor(M);
-    order = LON_twoOpt(order, M, 1500);
+      const targetCount = Math.min(requested, maxCities);
+      if (countEl) {
+        countEl.value = String(targetCount);
+      }
+      const routeCities = LON_planGreedy(targetCount);
 
-    // Render route and get total km
-    const totalKm = LON_renderRoute(cities, order, M);
+      if (routeCities.length === 0) {
+        routeBody.innerHTML = '';
+        routeTotalEl.textContent = 'No cities available to plan a trip.';
+        foodMount.innerHTML = '';
+        if (foodTotalEl) foodTotalEl.textContent = '';
+        if (grandTotalEl) grandTotalEl.textContent = '';
+        lastTotalKm = 0;
+        return;
+      }
 
-    // Render food purchase panels for visited cities, excluding London if you want only visited-after-start:
-    const visitedCities = order.map(i => cities[i]); // includes "London" first
-    LON_renderFoods(visitedCities, () => recomputeGrand(totalKm));
+      const M = LON_buildMatrix(routeCities);
+      const order = routeCities.map((_, idx) => idx);
+      const totalKm = LON_renderRoute(routeCities, order, M);
+      lastTotalKm = totalKm;
+      routeTotalEl.textContent += ` across ${routeCities.length} cities.`;
 
-    // Initial totals
-    recomputeGrand(totalKm);
-  });
+      LON_renderFoods(routeCities, recomputeGrand);
+      recomputeGrand();
+
+      if (requested > maxCities) {
+        routeTotalEl.textContent += ` Only ${maxCities} cities are available for this planner.`;
+      } else if (routeCities.length < requested) {
+        if (countEl) {
+          countEl.value = String(routeCities.length);
+        }
+        routeTotalEl.textContent += ` Only ${routeCities.length} cities have distance data.`;
+      }
+    });
+  }
 
   lonInitDone = true;
 }
+
+
