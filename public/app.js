@@ -675,8 +675,10 @@ async function loadDistances() {
 
 
 // Ensure foods list exists only after DOM is ready and foodsData is defined, then show initial route
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   try { initFoods(); } catch (e) { console.error(e); }
+  // Preload edge distances so Paris/London/custom planners can use spreadsheet distances
+  try { await loadEdgeDistancesCSV('./server/European Distances and Foods.csv'); } catch (e) { console.warn(e); }
   const initial = (location.hash || '#home').slice(1) || 'home';
   show(initial);
 });
@@ -790,6 +792,87 @@ const PLAN_CITIES = [
   "Vienna", "Prague", "Zurich", "Budapest", "Copenhagen", "Lisbon"
 ];
 
+// --- Edge-list distance graph from CSV (Starting City, Ending City, Kilometers) ---
+const EDGE_DIST = {
+  CityIndex: Object.create(null), // name -> index
+  CityNames: [],                  // index -> name
+  Dist: []                        // NxN matrix (km); Infinity if unknown; 0 on diagonal
+};
+
+function edgeEnsureCity(name) {
+  if (name in EDGE_DIST.CityIndex) return EDGE_DIST.CityIndex[name];
+  const idx = EDGE_DIST.CityNames.length;
+  EDGE_DIST.CityIndex[name] = idx;
+  EDGE_DIST.CityNames.push(name);
+  // expand matrix
+  EDGE_DIST.Dist.forEach(row => row.push(Infinity));
+  EDGE_DIST.Dist.push(Array(idx + 1).fill(Infinity));
+  EDGE_DIST.Dist[idx][idx] = 0;
+  return idx;
+}
+
+function edgeSetDistance(a, b, km) {
+  const i = edgeEnsureCity(a);
+  const j = edgeEnsureCity(b);
+  const v = Number(km);
+  if (!Number.isFinite(v) || v < 0) return;
+  const cur = EDGE_DIST.Dist[i][j];
+  const best = Number.isFinite(cur) ? Math.min(cur, v) : v;
+  EDGE_DIST.Dist[i][j] = EDGE_DIST.Dist[j][i] = best;
+}
+
+// Prefer CSV distance; fallback to haversine if needed
+function distanceBetweenCities(aName, bName) {
+  if (aName === bName) return 0;
+  const ai = EDGE_DIST.CityIndex[aName];
+  const bi = EDGE_DIST.CityIndex[bName];
+  if (ai !== undefined && bi !== undefined) {
+    const v = EDGE_DIST.Dist[ai][bi];
+    if (Number.isFinite(v) && v > 0) return v;
+  }
+  if (CITY_LATLON[aName] && CITY_LATLON[bName]) {
+    return haversineKm(CITY_LATLON[aName], CITY_LATLON[bName]);
+  }
+  return Infinity;
+}
+
+async function loadEdgeDistancesCSV(path = './server/European Distances and Foods.csv') {
+  try {
+    const res = await fetch(path, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+
+    const lines = text.trim().split(/\r?\n/);
+    if (!lines.length) return;
+
+    // Expect header: Starting City,Ending City,Kilometers
+    const header = lines[0].split(',').map(s => s.trim().toLowerCase());
+    const si = header.indexOf('starting city');
+    const ei = header.indexOf('ending city');
+    const ki = header.indexOf('kilometers');
+    if (si === -1 || ei === -1 || ki === -1) {
+      console.warn('Edge CSV header not recognized:', header);
+      return;
+    }
+
+    for (let r = 1; r < lines.length; r++) {
+      const raw = lines[r].trim();
+      if (!raw) continue;
+      const parts = raw.split(',');
+      if (parts.length < 3) continue;
+      const start = (parts[si] || '').trim();
+      const end   = (parts[ei] || '').trim();
+      const km    = parseFloat(String(parts[ki]).replace(/[^0-9.\\-]/g, ''));
+      if (!start || !end || !Number.isFinite(km)) continue;
+      edgeSetDistance(start, end, km);
+    }
+
+    console.log(`Loaded edge distances for ${EDGE_DIST.CityNames.length} cities`);
+  } catch (e) {
+    console.warn('Failed to load edge distance CSV:', e);
+  }
+}
+
 // Latitude/Longitude (approximate city centers)
 const CITY_LATLON = {
   Amsterdam: [52.3676, 4.9041],
@@ -836,10 +919,10 @@ function haversineKm(a, b) {
 
 function buildMatrix(cities) {
   const n = cities.length;
-  const M = Array.from({length:n}, () => Array(n).fill(0));
-  for (let i=0;i<n;i++) {
-    for (let j=i+1;j<n;j++) {
-      const dij = haversineKm(CITY_LATLON[cities[i]], CITY_LATLON[cities[j]]);
+  const M = Array.from({ length: n }, () => Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const dij = distanceBetweenCities(cities[i], cities[j]);
       M[i][j] = M[j][i] = dij;
     }
   }
@@ -977,12 +1060,13 @@ const LON_START = "London";
 // Cities available for selection (ensure they exist in CITY_LATLON and ideally foodsData)
 const LON_CHOOSABLE_CITIES = [
   "Paris","Amsterdam","Brussels","Madrid","Rome",
-  "Vienna","Prague","Zurich","Budapest","Copenhagen","Lisbon"
+  "Vienna","Prague","Zurich","Budapest","Copenhagen","Lisbon","Hamburg"
 ];
 
 // Fallback for lat/lon if not already defined somewhere else
 window.CITY_LATLON = window.CITY_LATLON || {
   Berlin: [52.52, 13.405],
+  Hamburg: [53.5511, 9.9937],
   London: [51.5074, -0.1278],
   Paris: [48.8566, 2.3522],
   Amsterdam: [52.3676, 4.9041],
@@ -1065,15 +1149,8 @@ function LON_haversineKm(a, b) {
 }
 
 function LON_buildMatrix(cities) {
-  const n = cities.length;
-  const M = Array.from({length:n}, () => Array(n).fill(0));
-  for (let i=0;i<n;i++) {
-    for (let j=i+1;j<n;j++) {
-      const dij = LON_haversineKm(CITY_LATLON[cities[i]], CITY_LATLON[cities[j]]);
-      M[i][j] = M[j][i] = dij;
-    }
-  }
-  return M;
+  // Use the CSV-aware global buildMatrix (falls back to haversine when needed)
+  return buildMatrix(cities);
 }
 
 // Build a greedy path that always visits the closest unvisited city next
@@ -1093,7 +1170,7 @@ function LON_planGreedy(count) {
     let bestDist = Infinity;
     for (let i = 0; i < remaining.length; i++) {
       const candidate = remaining[i];
-      const dist = LON_haversineKm(CITY_LATLON[current], CITY_LATLON[candidate]);
+      const dist = distanceBetweenCities(current, candidate);
       if (dist < bestDist) {
         bestDist = dist;
         bestIdx = i;
@@ -1261,16 +1338,16 @@ function initLondonPlan() {
   const foodTotalEl = document.getElementById('lon-food-total');
   const grandTotalEl = document.getElementById('lon-grand-total');
   const planBtn = document.getElementById('lon-plan-btn');
-  const maxCities = LON_CHOOSABLE_CITIES.filter(city => CITY_LATLON[city]).length + 1;
-
+  const usableCount = LON_CHOOSABLE_CITIES.filter(city => CITY_LATLON[city]).length;
+  const maxVisit = Math.min(12, usableCount); // up to 12 cities NOT including London
   if (countEl) {
-    countEl.max = maxCities;
+    countEl.max = maxVisit;
     if (!countEl.value) {
-      countEl.value = String(Math.min(5, maxCities));
+      countEl.value = String(Math.min(5, maxVisit));
     }
   }
   if (rangeEl) {
-    rangeEl.textContent = `Choose between 1 and ${maxCities} cities. London is always the starting city.`;
+    rangeEl.textContent = `Choose between 1 and ${maxVisit} cities to visit (not including London).`;
   }
   if (listEl) {
     listEl.textContent = `Other cities considered: ${LON_CHOOSABLE_CITIES.join(', ')}.`;
@@ -1298,16 +1375,25 @@ function initLondonPlan() {
     planBtn.addEventListener('click', () => {
       if (!routeBody || !routeTotalEl || !foodMount) return;
 
-      const requested = parseInt(countEl ? countEl.value : '0', 10);
-      if (isNaN(requested) || requested < 1) {
-        routeBody.innerHTML = '';
-        routeTotalEl.textContent = 'Enter how many cities you want to visit (minimum 1).';
-        foodMount.innerHTML = '';
-        if (foodTotalEl) foodTotalEl.textContent = '';
-        if (grandTotalEl) grandTotalEl.textContent = '';
-        lastTotalKm = 0;
-        return;
-      }
+      let requested = parseInt(countEl ? countEl.value : '0', 10);
+if (isNaN(requested) || requested < 1) {
+  routeBody.innerHTML = '';
+  routeTotalEl.textContent = 'Enter how many cities you want to visit (minimum 1).';
+  foodMount.innerHTML = '';
+  if (foodTotalEl) foodTotalEl.textContent = '';
+  if (grandTotalEl) grandTotalEl.textContent = '';
+  lastTotalKm = 0;
+  return;
+}
+
+// cap to 12 cities (excluding London)
+const maxCities = 12;
+requested = Math.min(requested, maxCities);
+
+// always ensure Hamburg is considered as a potential nearby city
+if (!LON_CHOOSABLE_CITIES.includes('Hamburg')) {
+  LON_CHOOSABLE_CITIES.push('Hamburg');
+}
 
       const targetCount = Math.min(requested, maxCities);
       if (countEl) {
