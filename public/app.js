@@ -83,6 +83,16 @@ const foodsData = {
     { item: "Cinnamon Bun (Kanelbulle)", price: "$3.90" },
     { item: "Gravlax", price: "$10.50" }
   ],
+  "Zurich": [
+    { item: "Rosti", price: "$8.50" },
+    { item: "Swiss Fondue", price: "$14.30" },
+    { item: "Luxemburgerli", price: "$5.60" }
+  ],
+  "Copenhagen": [
+    { item: "Smorrebrod", price: "$8.40" },
+    { item: "Frikadeller", price: "$9.25" },
+    { item: "Wienerbrod", price: "$4.05" }
+  ],
   "Vienna": [
     { item: "Sachertorte", price: "$6.80" },
     { item: "Wiener Schnitzel", price: "$13.20" },
