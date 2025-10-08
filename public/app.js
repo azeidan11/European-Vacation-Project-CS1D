@@ -269,7 +269,7 @@ function initCustomPlan() {
 
   let lastKm = 0;
   const recomputeGrand = () => {
-    const foodUSD = LON_computeFoodTotalUSD();
+    const foodUSD = LON_computeFoodTotalUSD('#cus-foods');
     const costPerKm = parseFloat(costEl && costEl.value ? costEl.value : '0') || 0;
     const distanceUSD = lastKm * costPerKm;
     if (foodTotalEl) foodTotalEl.textContent = `Food total: $${foodUSD.toFixed(2)}`;
@@ -289,7 +289,7 @@ function initCustomPlan() {
     lastKm = renderCustomRoute(cities, order, M);
     totalEl.textContent += ` across ${cities.length} cities.`;
 
-    LON_renderFoods(cities, recomputeGrand);
+    LON_renderFoods(cities, recomputeGrand, '#cus-foods');
     recomputeGrand();
   });
 
@@ -624,9 +624,9 @@ function LON_parseUSD(s) {
   return isNaN(n) ? 0 : n;
 }
 
-// Render food purchase panel for the visited cities
-function LON_renderFoods(visitedCities, onTotalsChanged) {
-  const mount = document.getElementById('lon-foods');
+// Render food purchase panel for the visited cities into a given mount
+function LON_renderFoods(visitedCities, onTotalsChanged, mountSelector = '#lon-foods') {
+  const mount = document.querySelector(mountSelector);
   mount.innerHTML = '';
 
   visitedCities.forEach(city => {
@@ -639,8 +639,22 @@ function LON_renderFoods(visitedCities, onTotalsChanged) {
         <thead><tr><th>Food</th><th>Price (USD)</th><th>Qty</th><th>Subtotal</th></tr></thead>
         <tbody></tbody>
       </table>
+      <p class="lon-city-summary hint" style="margin:6px 0 0;">City total: $0.00 • Items: 0</p>
     `;
     const tbody = section.querySelector('tbody');
+    const summaryEl = section.querySelector('.lon-city-summary');
+
+    const updateCitySummary = () => {
+      let citySum = 0;
+      let itemCount = 0;
+      tbody.querySelectorAll('tr').forEach(tr => {
+        const sub = tr.querySelector('.lon-sub');
+        const qty = tr.querySelector('input');
+        citySum += LON_parseUSD(sub && sub.textContent);
+        itemCount += Math.max(0, Math.min(9999, parseInt(qty && qty.value || '0', 10) || 0));
+      });
+      if (summaryEl) summaryEl.textContent = `City total: $${citySum.toFixed(2)} • Items: ${itemCount}`;
+    };
 
     items.forEach(({item, price}) => {
       const tr = document.createElement('tr');
@@ -657,19 +671,22 @@ function LON_renderFoods(visitedCities, onTotalsChanged) {
         const qty = Math.max(0, Math.min(9, parseInt(qtyEl.value || '0', 10) || 0));
         const sub = unit * qty;
         subEl.textContent = `$${sub.toFixed(2)}`;
+        updateCitySummary();
         onTotalsChanged();
       };
       qtyEl.addEventListener('input', recalc);
       tbody.appendChild(tr);
     });
 
+    // initialize per-city summary once rows exist
+    updateCitySummary();
     mount.appendChild(section);
   });
 }
 
-function LON_computeFoodTotalUSD() {
+function LON_computeFoodTotalUSD(mountSelector = '#lon-foods') {
   let sum = 0;
-  document.querySelectorAll('#lon-foods .lon-sub').forEach(td => {
+  document.querySelectorAll(`${mountSelector} .lon-sub`).forEach(td => {
     const v = LON_parseUSD(td.textContent);
     sum += v;
   });
@@ -708,7 +725,7 @@ function initLondonPlan() {
   let lastTotalKm = 0;
 
   const recomputeGrand = () => {
-    const foodUSD = LON_computeFoodTotalUSD();
+    const foodUSD = LON_computeFoodTotalUSD('#lon-foods');
     const costPerKm = parseFloat(costEl && costEl.value ? costEl.value : '0') || 0;
     const distanceUSD = lastTotalKm * costPerKm;
     if (foodTotalEl) {
@@ -760,7 +777,7 @@ function initLondonPlan() {
       lastTotalKm = totalKm;
       routeTotalEl.textContent += ` across ${routeCities.length} cities.`;
 
-      LON_renderFoods(routeCities, recomputeGrand);
+      LON_renderFoods(routeCities, recomputeGrand, '#lon-foods');
       recomputeGrand();
 
       if (requested > maxCities) {
