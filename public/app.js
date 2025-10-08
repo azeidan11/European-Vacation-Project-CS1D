@@ -103,6 +103,29 @@ let foodsData = window.foodsData || {
     { item: "Kaiserschmarrn", price: "$7.10" }
   ]
 };
+// --- Persistence for foods data (autosave/load) ---
+const FOODS_STORAGE_KEY = 'evp_foods_v1';
+function saveFoodsToStorage() {
+  try {
+    localStorage.setItem(FOODS_STORAGE_KEY, JSON.stringify(foodsData));
+  } catch (e) {
+    console.warn('Failed to save foods to storage', e);
+  }
+}
+function loadFoodsFromStorage() {
+  try {
+    const raw = localStorage.getItem(FOODS_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      foodsData = parsed;
+    }
+  } catch (e) {
+    console.warn('Failed to load foods from storage', e);
+  }
+}
+// Load any saved foods before exposing globally
+loadFoodsFromStorage();
 window.foodsData = foodsData;
 
 let foodsInitDone = false;
@@ -470,6 +493,8 @@ function initMaintenance() {
       reader.onload = evt => {
         const text = evt.target && typeof evt.target.result === 'string' ? evt.target.result : '';
         const summary = importFoodsCsv(text);
+        // Persist changes from import
+        saveFoodsToStorage();
         const parts = [];
         if (summary.addedCities.size) {
           parts.push(`${summary.addedCities.size} new ${summary.addedCities.size === 1 ? 'city' : 'cities'}`);
@@ -528,6 +553,8 @@ function initMaintenance() {
         return;
       }
       entry.price = formatUSD(parsed);
+      // Persist price update
+      saveFoodsToStorage();
       setStatus(priceStatus, `Price for "${itemName}" updated to ${entry.price}.`, false);
       if (priceInput) priceInput.value = '';
       populateSelectors();
@@ -561,6 +588,8 @@ function initMaintenance() {
       }
       entries.push({ item: itemName, price: formatUSD(parsed) });
       entries.sort((a, b) => a.item.localeCompare(b.item));
+      // Persist add
+      saveFoodsToStorage();
       setStatus(addStatus, `Added "${itemName}" to ${city}.`, false);
       if (addItemInput) addItemInput.value = '';
       if (addPriceInput) addPriceInput.value = '';
@@ -590,6 +619,8 @@ function initMaintenance() {
         return;
       }
       entries.splice(index, 1);
+      // Persist delete
+      saveFoodsToStorage();
       setStatus(deleteStatus, `"${itemName}" removed from ${city}.`, false);
       populateSelectors();
       refreshFoodsUI(city);
