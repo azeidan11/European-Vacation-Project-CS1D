@@ -18,6 +18,7 @@
         <a href="#plan-berlin" id="link-plan-berlin">Plan Berlin trip</a>
         <a href="#plan-london" id="link-plan-london">Plan London trip</a>
         <a href="#plan-custom" id="link-plan-custom">Plan custom trip</a>
+        <a href="#maintenance" id="link-maintenance">Maintenance</a>
       </div>
     </nav>
   </header>
@@ -270,6 +271,125 @@
           <p class="hint" id="cus-food-total"></p>
           <p class="hint" id="cus-grand-total"></p>
         </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MAINTENANCE -->
+<section id="maintenance" class="hidden">
+  <h1>Maintenance</h1>
+  <div class="card">
+    <div id="maint-login">
+      <p>This area is restricted to administrators.</p>
+      <label for="maint-password" style="display:block; margin:0 0 8px;">Password: (administrator only)</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input id="maint-password" type="password" placeholder="Enter password"
+               style="flex:1 1 180px; padding:6px 8px; border:1px solid #ddd; border-radius:8px;">
+        <button id="maint-login-btn"
+                style="padding:6px 12px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">
+          Unlock
+        </button>
+      </div>
+      <p class="hint" id="maint-login-hint"></p>
+    </div>
+
+    <div id="maint-content" class="hidden" style="margin-top:12px; display:flex; flex-direction:column; gap:18px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+        <h2 style="margin:0; font-size:16px;">Administrator Tools</h2>
+        <button id="maint-lock-btn"
+                style="padding:6px 12px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">
+          Lock
+        </button>
+      </div>
+
+      <div>
+        <h3 style="margin:0 0 6px;">Import cities and foods from file</h3>
+        <p class="hint" style="margin:0 0 8px;">
+          Upload the class CSV file (format: City,Food Item,Price) to add new cities or update existing foods.
+        </p>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input id="maint-import-file" type="file" accept=".csv,.txt"
+                 style="flex:1 1 240px; padding:6px 8px; border:1px solid #ddd; border-radius:8px;">
+          <button id="maint-import-btn"
+                  style="padding:6px 12px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">
+            Import
+          </button>
+        </div>
+        <p class="hint" id="maint-import-status"></p>
+      </div>
+
+      <div>
+        <h3 style="margin:0 0 6px;">Change food price</h3>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label>
+            City:
+            <select id="maint-price-city"
+                    style="margin-left:6px; padding:4px 6px; border:1px solid #ddd; border-radius:8px; min-width:160px;"></select>
+          </label>
+          <label>
+            Food item:
+            <select id="maint-price-item"
+                    style="margin-left:6px; padding:4px 6px; border:1px solid #ddd; border-radius:8px; min-width:200px;"></select>
+          </label>
+          <label>
+            New price (USD):
+            <input id="maint-price-value" type="number" step="0.01" min="0"
+                   style="margin-left:6px; padding:4px 6px; border:1px solid #ddd; border-radius:8px; width:140px;">
+          </label>
+          <button id="maint-price-btn"
+                  style="align-self:flex-start; padding:6px 12px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">
+            Update price
+          </button>
+        </div>
+        <p class="hint" id="maint-price-status"></p>
+      </div>
+
+      <div>
+        <h3 style="margin:0 0 6px;">Add a food item</h3>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label>
+            City:
+            <select id="maint-add-city"
+                    style="margin-left:6px; padding:4px 6px; border:1px solid #ddd; border-radius:8px; min-width:160px;"></select>
+          </label>
+          <label>
+            Food item name:
+            <input id="maint-add-item" type="text" placeholder="e.g. Paella"
+                   style="margin-left:6px; padding:4px 6px; border:1px solid #ddd; border-radius:8px; min-width:200px;">
+          </label>
+          <label>
+            Price (USD):
+            <input id="maint-add-price" type="number" step="0.01" min="0"
+                   style="margin-left:6px; padding:4px 6px; border:1px solid #ddd; border-radius:8px; width:140px;">
+          </label>
+          <button id="maint-add-btn"
+                  style="align-self:flex-start; padding:6px 12px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">
+            Add food item
+          </button>
+        </div>
+        <p class="hint" id="maint-add-status"></p>
+      </div>
+
+      <div>
+        <h3 style="margin:0 0 6px;">Delete a food item</h3>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label>
+            City:
+            <select id="maint-delete-city"
+                    style="margin-left:6px; padding:4px 6px; border:1px solid #ddd; border-radius:8px; min-width:160px;"></select>
+          </label>
+          <label>
+            Food item:
+            <select id="maint-delete-item"
+                    style="margin-left:6px; padding:4px 6px; border:1px solid #ddd; border-radius:8px; min-width:200px;"></select>
+          </label>
+          <button id="maint-delete-btn"
+                  style="align-self:flex-start; padding:6px 12px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">
+            Delete food item
+          </button>
+        </div>
+        <p class="hint" id="maint-delete-status"></p>
       </div>
     </div>
   </div>

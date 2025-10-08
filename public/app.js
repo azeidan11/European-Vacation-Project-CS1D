@@ -1,6 +1,6 @@
 ﻿
 // Simple two-page nav (Home / Distances)
-const routes = ["home", "distances", "foods", "plan", "plan-berlin", "plan-london", "plan-custom"];
+const routes = ["home", "distances", "foods", "plan", "plan-berlin", "plan-london", "plan-custom", "maintenance"];
 function show(route) {
   routes.forEach(r => {
     document.getElementById(r).classList.toggle("hidden", r !== route);
@@ -12,10 +12,13 @@ function show(route) {
   if (route === "plan-berlin") initBerlinPlan();
   if (route === "plan-london") initLondonPlan();
   if (route === "plan-custom") initCustomPlan();
+  if (route === "maintenance") initMaintenance();
 }
 
 // --- Foods data (parsed from the provided spreadsheet; up to six items per city) ---
-const foodsData = {
+const FOODS_HINT_DEFAULT = "Click a city to view up to six traditional foods and prices in USD.";
+
+let foodsData = window.foodsData || {
   "Amsterdam": [
     { item: "Stroopwafel", price: "$5.76" },
     { item: "Thick Dutch fries", price: "$3.21" },
@@ -100,60 +103,501 @@ const foodsData = {
     { item: "Kaiserschmarrn", price: "$7.10" }
   ]
 };
+window.foodsData = foodsData;
 
 let foodsInitDone = false;
-function initFoods() {
-  if (foodsInitDone) return;
-  const citiesBox = document.getElementById('foods-cities');
-  const body = document.getElementById('foods-body');
-  const title = document.getElementById('foods-city-title');
-  const search = document.getElementById('foods-search');
-  const hint = document.getElementById('foods-hint');
-  if (!citiesBox || !body || !title) return;
+const foodsRefs = {};
+const foodsState = { selectedCity: null };
 
-  // render city buttons
-  const cities = Object.keys(foodsData).sort((a,b)=>a.localeCompare(b));
-  citiesBox.innerHTML = '';
+function getSortedFoodCities() {
+  return Object.keys(foodsData).sort((a, b) => a.localeCompare(b));
+}
+
+function highlightFoodsCityButtons() {
+  if (!foodsRefs.citiesBox) return;
+  const buttons = foodsRefs.citiesBox.querySelectorAll('button[data-city]');
+  buttons.forEach(btn => {
+    const active = btn.dataset.city === foodsState.selectedCity;
+    btn.style.background = active ? '#eef2ff' : '#fff';
+    btn.style.fontWeight = active ? '600' : '400';
+  });
+}
+
+function renderFoodsCities(preferredCity) {
+  if (!foodsRefs.citiesBox) return;
+  const cities = getSortedFoodCities();
+  let targetCity = null;
+  if (preferredCity && cities.includes(preferredCity)) {
+    targetCity = preferredCity;
+  } else if (foodsState.selectedCity && cities.includes(foodsState.selectedCity)) {
+    targetCity = foodsState.selectedCity;
+  } else if (foodsInitDone && cities.length) {
+    targetCity = cities[0];
+  }
+
+  foodsState.selectedCity = targetCity || null;
+  foodsRefs.citiesBox.innerHTML = '';
   cities.forEach(city => {
     const btn = document.createElement('button');
     btn.textContent = city;
+    btn.dataset.city = city;
     btn.style.padding = '6px 8px';
     btn.style.border = '1px solid #ddd';
     btn.style.borderRadius = '8px';
     btn.style.background = '#fff';
     btn.style.cursor = 'pointer';
     btn.addEventListener('click', () => {
-      title.textContent = city;
-      renderFoods(city, search.value || '');
+      if (foodsState.selectedCity === city) return;
+      foodsState.selectedCity = city;
+      renderFoodsTable();
+      highlightFoodsCityButtons();
     });
-    citiesBox.appendChild(btn);
+    foodsRefs.citiesBox.appendChild(btn);
+  });
+  highlightFoodsCityButtons();
+}
+
+function renderFoodsTable() {
+  if (!foodsRefs.body || !foodsRefs.title) return;
+  const hintEl = foodsRefs.hint;
+  const searchVal = foodsRefs.search ? (foodsRefs.search.value || '').trim().toLowerCase() : '';
+  const city = foodsState.selectedCity;
+
+  if (!city) {
+    foodsRefs.title.textContent = "Select a city";
+    foodsRefs.body.innerHTML = '';
+    if (hintEl) {
+      hintEl.textContent = getSortedFoodCities().length
+        ? FOODS_HINT_DEFAULT
+        : "Import data or add foods to get started.";
+    }
+    highlightFoodsCityButtons();
+    return;
+  }
+
+  foodsRefs.title.textContent = city;
+  const items = (foodsData[city] || []).slice();
+  const filtered = searchVal
+    ? items.filter(it => it.item.toLowerCase().includes(searchVal))
+    : items;
+
+  foodsRefs.body.innerHTML = '';
+  if (!filtered.length) {
+    if (hintEl) {
+      hintEl.textContent = items.length ? 'No matching foods.' : 'No foods saved for this city yet.';
+    }
+    highlightFoodsCityButtons();
+    return;
+  }
+
+  filtered.slice(0, 6).forEach(({ item, price }) => {
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td');
+    td1.textContent = item;
+    const td2 = document.createElement('td');
+    td2.textContent = price;
+    tr.appendChild(td1);
+    tr.appendChild(td2);
+    foodsRefs.body.appendChild(tr);
+  });
+  if (hintEl) hintEl.textContent = '';
+  highlightFoodsCityButtons();
+}
+
+function refreshFoodsUI(preferredCity) {
+  if (!foodsRefs.citiesBox || !foodsRefs.body || !foodsRefs.title) return;
+  renderFoodsCities(preferredCity);
+  renderFoodsTable();
+}
+
+function initFoods() {
+  if (foodsInitDone) return;
+  foodsRefs.citiesBox = document.getElementById('foods-cities');
+  foodsRefs.body = document.getElementById('foods-body');
+  foodsRefs.title = document.getElementById('foods-city-title');
+  foodsRefs.search = document.getElementById('foods-search');
+  foodsRefs.hint = document.getElementById('foods-hint');
+  if (!foodsRefs.citiesBox || !foodsRefs.body || !foodsRefs.title) return;
+
+  if (foodsRefs.search) {
+    foodsRefs.search.addEventListener('input', () => renderFoodsTable());
+  }
+
+  refreshFoodsUI();
+  foodsInitDone = true;
+}
+
+function parsePriceValue(raw) {
+  if (raw === null || raw === undefined) return null;
+  const normalized = String(raw).replace(/[^0-9.,-]/g, '').replace(',', '.');
+  if (!normalized) return null;
+  const value = Number.parseFloat(normalized);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return value;
+}
+
+function formatUSD(value) {
+  const num = typeof value === 'number' ? value : Number.parseFloat(value);
+  if (!Number.isFinite(num)) return "$0.00";
+  return `$${Math.max(0, num).toFixed(2)}`;
+}
+
+function importFoodsCsv(text) {
+  const summary = {
+    addedCities: new Set(),
+    touchedCities: new Set(),
+    addedItems: 0,
+    updatedItems: 0,
+    errors: []
+  };
+
+  if (!text) return summary;
+
+  const lines = String(text).split(/\r?\n/);
+  lines.forEach((line, index) => {
+    const normalizedLine = line.replace(/\uFEFF/g, '').trim();
+    if (!normalizedLine) return;
+    if (index === 0 && /city/i.test(normalizedLine) && /food/i.test(normalizedLine) && /price/i.test(normalizedLine)) {
+      return;
+    }
+    const parts = normalizedLine.split(',');
+    if (parts.length < 3) {
+      summary.errors.push(`Line ${index + 1}: expected "City,Food Item,Price".`);
+      return;
+    }
+    const city = parts.shift().trim();
+    const priceRaw = parts.pop().trim();
+    const itemName = parts.join(',').trim();
+    if (!city || !itemName || !priceRaw) {
+      summary.errors.push(`Line ${index + 1}: missing city, food, or price.`);
+      return;
+    }
+    const priceNumber = parsePriceValue(priceRaw);
+    if (priceNumber === null) {
+      summary.errors.push(`Line ${index + 1}: invalid price "${priceRaw}".`);
+      return;
+    }
+    if (!foodsData[city]) {
+      foodsData[city] = [];
+      summary.addedCities.add(city);
+    }
+    const cityItems = foodsData[city];
+    const existing = cityItems.find(entry => entry.item.toLowerCase() === itemName.toLowerCase());
+    const formattedPrice = formatUSD(priceNumber);
+    if (existing) {
+      existing.price = formattedPrice;
+      summary.updatedItems++;
+    } else {
+      cityItems.push({ item: itemName, price: formattedPrice });
+      cityItems.sort((a, b) => a.item.localeCompare(b.item));
+      summary.addedItems++;
+    }
+    summary.touchedCities.add(city);
   });
 
-  function renderFoods(city, q) {
-    const items = (foodsData[city] || []).slice(0, 6);
-    const norm = (q||'').trim().toLowerCase();
-    const filtered = norm ? items.filter(it => it.item.toLowerCase().includes(norm)) : items;
+  return summary;
+}
 
-    body.innerHTML = '';
-    filtered.forEach(({item, price}) => {
-      const tr = document.createElement('tr');
-      const td1 = document.createElement('td'); td1.textContent = item; // clicking item does nothing
-      const td2 = document.createElement('td'); td2.textContent = price;
-      tr.appendChild(td1); tr.appendChild(td2);
-      body.appendChild(tr);
-    });
-    if (hint) hint.textContent = filtered.length ? '' : 'No matching foods.';
+const ADMIN_PASSWORD = "123";
+let maintenanceInitDone = false;
+let maintenanceUnlocked = false;
+
+function initMaintenance() {
+  if (maintenanceInitDone) return;
+
+  const loginBox = document.getElementById('maint-login');
+  const contentBox = document.getElementById('maint-content');
+  if (!loginBox || !contentBox) return;
+
+  const passwordInput = document.getElementById('maint-password');
+  const loginBtn = document.getElementById('maint-login-btn');
+  const loginHint = document.getElementById('maint-login-hint');
+  const lockBtn = document.getElementById('maint-lock-btn');
+
+  const importFile = document.getElementById('maint-import-file');
+  const importBtn = document.getElementById('maint-import-btn');
+  const importStatus = document.getElementById('maint-import-status');
+
+  const priceCitySel = document.getElementById('maint-price-city');
+  const priceItemSel = document.getElementById('maint-price-item');
+  const priceInput = document.getElementById('maint-price-value');
+  const priceBtn = document.getElementById('maint-price-btn');
+  const priceStatus = document.getElementById('maint-price-status');
+
+  const addCitySel = document.getElementById('maint-add-city');
+  const addItemInput = document.getElementById('maint-add-item');
+  const addPriceInput = document.getElementById('maint-add-price');
+  const addBtn = document.getElementById('maint-add-btn');
+  const addStatus = document.getElementById('maint-add-status');
+
+  const deleteCitySel = document.getElementById('maint-delete-city');
+  const deleteItemSel = document.getElementById('maint-delete-item');
+  const deleteBtn = document.getElementById('maint-delete-btn');
+  const deleteStatus = document.getElementById('maint-delete-status');
+
+  function setStatus(el, message, isError = false) {
+    if (!el) return;
+    el.textContent = message || '';
+    el.style.color = message ? (isError ? '#b00020' : '#1b5e20') : '';
   }
 
-  // live search within current city
-  if (search) {
-    search.addEventListener('input', () => {
-      const currentCity = title.textContent && foodsData[title.textContent] ? title.textContent : null;
-      if (currentCity) renderFoods(currentCity, search.value || '');
+  function setLockState(locked) {
+    maintenanceUnlocked = !locked;
+    if (locked) {
+      contentBox.classList.add('hidden');
+      loginBox.classList.remove('hidden');
+      if (passwordInput) passwordInput.value = '';
+    } else {
+      contentBox.classList.remove('hidden');
+      loginBox.classList.add('hidden');
+      populateSelectors();
+    }
+    if (loginHint) loginHint.textContent = '';
+    setStatus(importStatus, '');
+    setStatus(priceStatus, '');
+    setStatus(addStatus, '');
+    setStatus(deleteStatus, '');
+  }
+
+  function updateItemsFor(citySelect, itemSelect) {
+    if (!itemSelect) return;
+    itemSelect.innerHTML = '';
+    itemSelect.disabled = true;
+    const city = citySelect && citySelect.value;
+    if (!city || !foodsData[city] || foodsData[city].length === 0) {
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = city ? 'No foods available' : 'Select a city first';
+      itemSelect.appendChild(placeholder);
+      return;
+    }
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Select a food item';
+    itemSelect.appendChild(placeholder);
+    foodsData[city]
+      .slice()
+      .sort((a, b) => a.item.localeCompare(b.item))
+      .forEach(entry => {
+        const opt = document.createElement('option');
+        opt.value = entry.item;
+        opt.textContent = entry.item;
+        itemSelect.appendChild(opt);
+      });
+    itemSelect.disabled = false;
+  }
+
+  function populateSelectors() {
+    const cities = getSortedFoodCities();
+    const selects = [priceCitySel, addCitySel, deleteCitySel];
+    selects.forEach(select => {
+      if (!select) return;
+      const previous = select.value;
+      select.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Select a city';
+      select.appendChild(placeholder);
+      cities.forEach(city => {
+        const opt = document.createElement('option');
+        opt.value = city;
+        opt.textContent = city;
+        select.appendChild(opt);
+      });
+      if (previous && cities.includes(previous)) {
+        select.value = previous;
+      } else {
+        select.value = '';
+      }
+    });
+    updateItemsFor(priceCitySel, priceItemSel);
+    updateItemsFor(deleteCitySel, deleteItemSel);
+  }
+
+  function requireUnlock(statusEl) {
+    if (maintenanceUnlocked) return false;
+    setStatus(statusEl, 'Unlock maintenance with the administrator password first.', true);
+    return true;
+  }
+
+  if (loginBtn) {
+    loginBtn.addEventListener('click', () => {
+      const entered = passwordInput ? (passwordInput.value || '').trim() : '';
+      if (entered === ADMIN_PASSWORD) {
+        setLockState(false);
+      } else if (loginHint) {
+        loginHint.textContent = 'Incorrect password.';
+      }
     });
   }
 
-  foodsInitDone = true;
+  if (passwordInput) {
+    passwordInput.addEventListener('keyup', evt => {
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+        if (loginBtn) loginBtn.click();
+      }
+    });
+  }
+
+  if (lockBtn) {
+    lockBtn.addEventListener('click', () => setLockState(true));
+  }
+
+  if (priceCitySel) {
+    priceCitySel.addEventListener('change', () => {
+      updateItemsFor(priceCitySel, priceItemSel);
+      setStatus(priceStatus, '');
+    });
+  }
+
+  if (deleteCitySel) {
+    deleteCitySel.addEventListener('change', () => {
+      updateItemsFor(deleteCitySel, deleteItemSel);
+      setStatus(deleteStatus, '');
+    });
+  }
+
+  if (importBtn) {
+    importBtn.addEventListener('click', () => {
+      if (requireUnlock(importStatus)) return;
+      if (!importFile || !importFile.files || !importFile.files.length) {
+        setStatus(importStatus, 'Choose a CSV or text file to import.', true);
+        return;
+      }
+      const file = importFile.files[0];
+      const reader = new FileReader();
+      reader.onload = evt => {
+        const text = evt.target && typeof evt.target.result === 'string' ? evt.target.result : '';
+        const summary = importFoodsCsv(text);
+        const parts = [];
+        if (summary.addedCities.size) {
+          parts.push(`${summary.addedCities.size} new ${summary.addedCities.size === 1 ? 'city' : 'cities'}`);
+        }
+        if (summary.addedItems) {
+          parts.push(`${summary.addedItems} item(s) added`);
+        }
+        if (summary.updatedItems) {
+          parts.push(`${summary.updatedItems} item(s) updated`);
+        }
+        if (!parts.length) {
+          parts.push('File processed with no changes');
+        }
+        let message = parts.join(', ') + '.';
+        if (summary.errors.length) {
+          message += ` ${summary.errors.length} line(s) skipped.`;
+          console.warn('Import skipped lines:', summary.errors);
+        }
+        setStatus(importStatus, message, summary.errors.length > 0);
+        if (importFile) importFile.value = '';
+        populateSelectors();
+        const firstTouched = summary.touchedCities.size ? Array.from(summary.touchedCities)[0] : undefined;
+        refreshFoodsUI(firstTouched);
+      };
+      reader.onerror = () => {
+        setStatus(importStatus, 'Unable to read the selected file.', true);
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  if (priceBtn) {
+    priceBtn.addEventListener('click', () => {
+      if (requireUnlock(priceStatus)) return;
+      const city = priceCitySel && priceCitySel.value;
+      const itemName = priceItemSel && priceItemSel.value;
+      const priceValue = priceInput ? priceInput.value : '';
+      if (!city) {
+        setStatus(priceStatus, 'Select a city.', true);
+        return;
+      }
+      if (!itemName) {
+        setStatus(priceStatus, 'Select a food item to update.', true);
+        return;
+      }
+      const parsed = parsePriceValue(priceValue);
+      if (parsed === null) {
+        setStatus(priceStatus, 'Enter a valid non-negative price.', true);
+        return;
+      }
+      const entries = foodsData[city] || [];
+      const entry = entries.find(e => e.item === itemName);
+      if (!entry) {
+        setStatus(priceStatus, 'Selected food item was not found.', true);
+        populateSelectors();
+        return;
+      }
+      entry.price = formatUSD(parsed);
+      setStatus(priceStatus, `Price for "${itemName}" updated to ${entry.price}.`, false);
+      if (priceInput) priceInput.value = '';
+      populateSelectors();
+      refreshFoodsUI(city);
+    });
+  }
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      if (requireUnlock(addStatus)) return;
+      const city = addCitySel && addCitySel.value;
+      const itemName = addItemInput ? addItemInput.value.trim() : '';
+      const priceValue = addPriceInput ? addPriceInput.value : '';
+      if (!city) {
+        setStatus(addStatus, 'Select a city to add the food item to.', true);
+        return;
+      }
+      if (!itemName) {
+        setStatus(addStatus, 'Enter the name of the food item.', true);
+        return;
+      }
+      const parsed = parsePriceValue(priceValue);
+      if (parsed === null) {
+        setStatus(addStatus, 'Enter a valid non-negative price.', true);
+        return;
+      }
+      const entries = foodsData[city] || (foodsData[city] = []);
+      if (entries.some(e => e.item.toLowerCase() === itemName.toLowerCase())) {
+        setStatus(addStatus, 'That food item already exists. Use the price change tool instead.', true);
+        return;
+      }
+      entries.push({ item: itemName, price: formatUSD(parsed) });
+      entries.sort((a, b) => a.item.localeCompare(b.item));
+      setStatus(addStatus, `Added "${itemName}" to ${city}.`, false);
+      if (addItemInput) addItemInput.value = '';
+      if (addPriceInput) addPriceInput.value = '';
+      populateSelectors();
+      refreshFoodsUI(city);
+    });
+  }
+
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', () => {
+      if (requireUnlock(deleteStatus)) return;
+      const city = deleteCitySel && deleteCitySel.value;
+      const itemName = deleteItemSel && deleteItemSel.value;
+      if (!city) {
+        setStatus(deleteStatus, 'Select a city.', true);
+        return;
+      }
+      if (!itemName) {
+        setStatus(deleteStatus, 'Select the food item to delete.', true);
+        return;
+      }
+      const entries = foodsData[city] || [];
+      const index = entries.findIndex(e => e.item === itemName);
+      if (index === -1) {
+        setStatus(deleteStatus, 'Selected food item was not found.', true);
+        populateSelectors();
+        return;
+      }
+      entries.splice(index, 1);
+      setStatus(deleteStatus, `"${itemName}" removed from ${city}.`, false);
+      populateSelectors();
+      refreshFoodsUI(city);
+    });
+  }
+
+  setLockState(true);
+  maintenanceInitDone = true;
 }
 window.addEventListener("hashchange", () => {
   const r = (location.hash || "#home").slice(1);
