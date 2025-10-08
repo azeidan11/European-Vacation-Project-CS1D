@@ -1,6 +1,6 @@
 ﻿
 // Simple two-page nav (Home / Distances)
-const routes = ["home", "distances", "foods", "plan", "plan-london", "plan-custom"];
+const routes = ["home", "distances", "foods", "plan", "plan-london"];
 function show(route) {
   routes.forEach(r => {
     document.getElementById(r).classList.toggle("hidden", r !== route);
@@ -10,7 +10,6 @@ function show(route) {
   if (route === "foods") initFoods();
   if (route === "plan") initPlan();
   if (route === "plan-london") initLondonPlan();
-  if (route === "plan-custom") initCustomPlan();
 }
 
 // --- Foods data (parsed from the provided spreadsheet; up to six items per city) ---
@@ -32,22 +31,22 @@ const foodsData = {
     { item: "Speculoos", price: "$3.40" },
     { item: "Chocolate Truffles", price: "$7.75" }
   ],
- "Budapest": [
+  "Budapest": [
     { item: "Goulash", price: "$9.10" },
-    { item: "Kürtőskalács (Chimney Cake)", price: "$4.20" },
-    { item: "Lángos", price: "$5.30" },
+    { item: "KÃ¼rtÅ‘skalÃ¡cs (Chimney Cake)", price: "$4.20" },
+    { item: "LÃ¡ngos", price: "$5.30" },
     { item: "Dobos Torte", price: "$4.80" }
   ],
   "Hamburg": [
-    { item: "Franzbrötchen", price: "$3.10" },
-    { item: "Fischbrötchen", price: "$5.95" },
+    { item: "FranzbrÃ¶tchen", price: "$3.10" },
+    { item: "FischbrÃ¶tchen", price: "$5.95" },
     { item: "Labskaus", price: "$11.20" },
-    { item: "Rote Grütze", price: "$4.35" }
+    { item: "Rote GrÃ¼tze", price: "$4.35" }
   ],
   "Lisbon": [
     { item: "Pastel de Nata", price: "$2.10" },
     { item: "Bifana", price: "$5.20" },
-    { item: "Bacalhau à Brás", price: "$10.60" }
+    { item: "Bacalhau Ã  BrÃ¡s", price: "$10.60" }
   ],
   "London": [
     { item: "Fish and Chips", price: "$11.40" },
@@ -57,29 +56,29 @@ const foodsData = {
   "Madrid": [
     { item: "Churros con Chocolate", price: "$4.30" },
     { item: "Bocadillo de Calamares", price: "$7.50" },
-    { item: "Tortilla Española", price: "$6.20" }
+    { item: "Tortilla EspaÃ±ola", price: "$6.20" }
   ],
   "Paris": [
-    { item: "Crêpe", price: "$5.10" },
+    { item: "CrÃªpe", price: "$5.10" },
     { item: "Croissant", price: "$2.40" },
     { item: "Macarons", price: "$7.30" },
     { item: "Onion Soup", price: "$9.80" }
   ],
   "Prague": [
-    { item: "Trdelník", price: "$4.00" },
-    { item: "Svíčková", price: "$10.90" },
-    { item: "Knedlíky", price: "$3.70" },
-    { item: "Palačinky", price: "$4.60" }
+    { item: "TrdelnÃ­k", price: "$4.00" },
+    { item: "SvÃ­ÄkovÃ¡", price: "$10.90" },
+    { item: "KnedlÃ­ky", price: "$3.70" },
+    { item: "PalaÄinky", price: "$4.60" }
   ],
   "Rome": [
     { item: "Margherita Pizza", price: "$9.00" },
     { item: "Cacio e Pepe", price: "$11.20" },
     { item: "Gelato", price: "$3.50" },
     { item: "Tiramisu", price: "$5.80" },
-    { item: "Supplì", price: "$3.90" }
+    { item: "SupplÃ¬", price: "$3.90" }
   ],
   "Stockholm": [
-    { item: "Köttbullar (Meatballs)", price: "$12.30" },
+    { item: "KÃ¶ttbullar (Meatballs)", price: "$12.30" },
     { item: "Cinnamon Bun (Kanelbulle)", price: "$3.90" },
     { item: "Gravlax", price: "$10.50" }
   ],
@@ -194,107 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const initial = (location.hash || '#home').slice(1) || 'home';
   show(initial);
 });
-
-// --- Custom Trip Planner (select start city and destinations) ---
-let customInitDone = false;
-function initCustomPlan() {
-  if (customInitDone) return;
-
-  const startSel = document.getElementById('cus-start');
-  const listMount = document.getElementById('cus-city-list');
-  const btn = document.getElementById('cus-plan-btn');
-  const tbody = document.getElementById('cus-route-body');
-  const totalEl = document.getElementById('cus-route-total');
-  const foodsMount = document.getElementById('cus-foods');
-  const foodTotalEl = document.getElementById('cus-food-total');
-  const grandTotalEl = document.getElementById('cus-grand-total');
-  const costEl = document.getElementById('cus-costkm');
-
-  if (!startSel || !listMount || !btn || !tbody || !totalEl || !foodsMount) return;
-
-  const allCities = Object.keys(CITY_LATLON);
-  allCities.sort((a,b)=>a.localeCompare(b));
-
-  // Populate start select
-  startSel.innerHTML = '';
-  allCities.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c; opt.textContent = c;
-    startSel.appendChild(opt);
-  });
-  if (allCities.includes('Paris')) startSel.value = 'Paris';
-
-  // Populate destination checkboxes
-  function renderCityChecks() {
-    const start = startSel.value;
-    listMount.innerHTML = '';
-    allCities.forEach(c => {
-      if (c === start) return;
-      const id = `cus-city-${c.replace(/\W+/g,'_')}`;
-      const wrap = document.createElement('label');
-      wrap.style.display = 'flex';
-      wrap.style.alignItems = 'center';
-      wrap.style.gap = '6px';
-      wrap.innerHTML = `<input type="checkbox" id="${id}" value="${c}"><span>${c}</span>`;
-      listMount.appendChild(wrap);
-    });
-  }
-  renderCityChecks();
-
-  const selectAllBtn = document.getElementById('cus-select-all');
-  const clearBtn = document.getElementById('cus-clear');
-  if (selectAllBtn) selectAllBtn.addEventListener('click', () => {
-    listMount.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
-  });
-  if (clearBtn) clearBtn.addEventListener('click', () => {
-    listMount.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-  });
-  startSel.addEventListener('change', renderCityChecks);
-
-  function renderCustomRoute(cities, order, M) {
-    tbody.innerHTML = '';
-    let totalKm = 0;
-    for (let i=0;i<order.length;i++) {
-      const idx = order[i];
-      const city = cities[idx];
-      const leg = i===0 ? 0 : M[order[i-1]][idx];
-      if (i>0) totalKm += leg;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${i+1}</td><td>${city}</td><td>${i===0?'-':Math.round(leg)}</td>`;
-      tbody.appendChild(tr);
-    }
-    totalEl.textContent = `Total distance (no return to start): ${Math.round(totalKm)} km`;
-    return totalKm;
-  }
-
-  let lastKm = 0;
-  const recomputeGrand = () => {
-    const foodUSD = LON_computeFoodTotalUSD();
-    const costPerKm = parseFloat(costEl && costEl.value ? costEl.value : '0') || 0;
-    const distanceUSD = lastKm * costPerKm;
-    if (foodTotalEl) foodTotalEl.textContent = `Food total: $${foodUSD.toFixed(2)}`;
-    if (grandTotalEl) grandTotalEl.textContent = `Grand total: $${(foodUSD + distanceUSD).toFixed(2)} (includes distance cost $${distanceUSD.toFixed(2)})`;
-  };
-  if (costEl) costEl.addEventListener('input', recomputeGrand);
-
-  btn.addEventListener('click', () => {
-    const start = startSel.value;
-    const selected = Array.from(listMount.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-    const visit = selected.length ? selected : Array.from(listMount.querySelectorAll('input[type="checkbox"]')).map(cb => cb.value);
-    const cities = [start, ...visit];
-    const M = buildMatrix(cities);
-    let order = nearestNeighborOrder(M); // starts at index 0
-    order = twoOptOpen(order, M, 1000);
-
-    lastKm = renderCustomRoute(cities, order, M);
-    totalEl.textContent += ` across ${cities.length} cities.`;
-
-    LON_renderFoods(cities, recomputeGrand);
-    recomputeGrand();
-  });
-
-  customInitDone = true;
-}
 
 // --- Trip planner (Paris start, visit 11 cities) ---
 const PLAN_CITIES = [
