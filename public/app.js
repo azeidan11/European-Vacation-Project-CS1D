@@ -1,6 +1,6 @@
 ﻿
 // Simple two-page nav (Home / Distances)
-const routes = ["home", "distances", "foods", "plan", "plan-london", "plan-custom"];
+const routes = ["home", "distances", "foods", "plan", "plan-berlin", "plan-london", "plan-custom"];
 function show(route) {
   routes.forEach(r => {
     document.getElementById(r).classList.toggle("hidden", r !== route);
@@ -9,6 +9,7 @@ function show(route) {
   if (route === "distances") loadDistances();
   if (route === "foods") initFoods();
   if (route === "plan") initPlan();
+  if (route === "plan-berlin") initBerlinPlan();
   if (route === "plan-london") initLondonPlan();
   if (route === "plan-custom") initCustomPlan();
 }
@@ -316,19 +317,37 @@ const PLAN_CITIES = [
 
 // Latitude/Longitude (approximate city centers)
 const CITY_LATLON = {
-  Paris: [48.8566, 2.3522],
   Amsterdam: [52.3676, 4.9041],
+  Berlin: [52.52, 13.405],
   Brussels: [50.8503, 4.3517],
-  London: [51.5074, -0.1278],
-  Madrid: [40.4168, -3.7038],
-  Rome: [41.9028, 12.4964],
-  Vienna: [48.2082, 16.3738],
-  Prague: [50.0755, 14.4378],
-  Zurich: [47.3769, 8.5417],
   Budapest: [47.4979, 19.0402],
   Copenhagen: [55.6761, 12.5683],
-  Lisbon: [38.7223, -9.1393]
+  Lisbon: [38.7223, -9.1393],
+  London: [51.5074, -0.1278],
+  Madrid: [40.4168, -3.7038],
+  Paris: [48.8566, 2.3522],
+  Prague: [50.0755, 14.4378],
+  Rome: [41.9028, 12.4964],
+  Stockholm: [59.3293, 18.0686],
+  Vienna: [48.2082, 16.3738],
+  Zurich: [47.3769, 8.5417]
 };
+
+const BERLIN_PLAN_CITIES = [
+  "Berlin",
+  "Amsterdam",
+  "Brussels",
+  "Paris",
+  "London",
+  "Madrid",
+  "Lisbon",
+  "Rome",
+  "Vienna",
+  "Prague",
+  "Budapest",
+  "Copenhagen",
+  "Stockholm"
+];
 
 function haversineKm(a, b) {
   const R = 6371; // km
@@ -414,6 +433,23 @@ function renderPlan(cities, order, M) {
   totalP.textContent = `Total distance (no return to start): ${Math.round(total)} km`;
 }
 
+function renderBerlinRoute(tbodyEl, totalEl, cities, order, M) {
+  if (!tbodyEl || !totalEl) return 0;
+  tbodyEl.innerHTML = '';
+  let total = 0;
+  for (let i = 0; i < order.length; i++) {
+    const idx = order[i];
+    const city = cities[idx];
+    const leg = i === 0 ? 0 : M[order[i - 1]][idx];
+    if (i > 0) total += leg;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i + 1}</td><td>${city}</td><td>${i === 0 ? '-' : Math.round(leg)}</td>`;
+    tbodyEl.appendChild(tr);
+  }
+  totalEl.textContent = `Total distance (no return to start): ${Math.round(total)} km`;
+  return total;
+}
+
 let planInitDone = false;
 function initPlan() {
   if (planInitDone) return;
@@ -429,6 +465,37 @@ function initPlan() {
   planInitDone = true;
 }
 
+let berlinInitDone = false;
+function initBerlinPlan() {
+  if (berlinInitDone) return;
+
+  const btn = document.getElementById('berlin-plan-btn');
+  const routeBody = document.getElementById('berlin-route-body');
+  const routeTotalEl = document.getElementById('berlin-route-total');
+  const foodsMount = document.getElementById('berlin-foods');
+  const foodTotalEl = document.getElementById('berlin-food-total');
+
+  if (!btn || !routeBody || !routeTotalEl || !foodsMount || !foodTotalEl) return;
+
+  const recomputeFoodTotal = () => {
+    const foodUSD = LON_computeFoodTotalUSD('#berlin-foods');
+    foodTotalEl.textContent = `Food total: $${foodUSD.toFixed(2)}`;
+  };
+
+  btn.addEventListener('click', () => {
+    const cities = BERLIN_PLAN_CITIES.slice();
+    const M = buildMatrix(cities);
+    let order = nearestNeighborOrder(M);
+    order = twoOptOpen(order, M, 1500);
+    renderBerlinRoute(routeBody, routeTotalEl, cities, order, M);
+    const orderedCities = order.map(idx => cities[idx]);
+    LON_renderFoods(orderedCities, recomputeFoodTotal, '#berlin-foods');
+    recomputeFoodTotal();
+  });
+
+  berlinInitDone = true;
+}
+
 // -------------------- London Trip Planner (Shortest with food purchases) --------------------
 const LON_START = "London";
 
@@ -440,6 +507,7 @@ const LON_CHOOSABLE_CITIES = [
 
 // Fallback for lat/lon if not already defined somewhere else
 window.CITY_LATLON = window.CITY_LATLON || {
+  Berlin: [52.52, 13.405],
   London: [51.5074, -0.1278],
   Paris: [48.8566, 2.3522],
   Amsterdam: [52.3676, 4.9041],
@@ -451,7 +519,8 @@ window.CITY_LATLON = window.CITY_LATLON || {
   Zurich: [47.3769, 8.5417],
   Budapest: [47.4979, 19.0402],
   Copenhagen: [55.6761, 12.5683],
-  Lisbon: [38.7223, -9.1393]
+  Lisbon: [38.7223, -9.1393],
+  Stockholm: [59.3293, 18.0686]
 };
 
 // Fallback foodsData if missing (keep it minimal; you already have a richer foodsData)

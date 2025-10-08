@@ -15,6 +15,7 @@
         <a href="#distances" id="link-distances">View distances</a>
         <a href="#foods" id="link-foods">View foods</a>
         <a href="#plan" id="link-plan">Plan trip</a>
+        <a href="#plan-berlin" id="link-plan-berlin">Plan Berlin trip</a>
         <a href="#plan-london" id="link-plan-london">Plan London trip</a>
         <a href="#plan-custom" id="link-plan-custom">Plan custom trip</a>
       </div>
@@ -121,6 +122,35 @@
       </table>
       <p class="hint" id="plan-total"></p>
     </div>
+  </div>
+</section>
+
+<!-- PLAN TRIP (Berlin start -> 12 more cities) -->
+<section id="plan-berlin" class="hidden">
+  <h1>Plan Berlin Trip (13 Cities)</h1>
+  <div class="card">
+    <p class="hint">
+      Start in <strong>Berlin</strong>, visit twelve additional European cities, view the total distance, and select traditional foods to purchase.
+    </p>
+    <button id="berlin-plan-btn"
+            style="padding:6px 10px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">
+      Compute route
+    </button>
+
+    <div id="berlin-results" style="margin-top:14px;">
+      <h2 style="margin:0 0 8px; font-size:16px;">Route</h2>
+      <table aria-label="Planned route and distances">
+        <thead>
+          <tr><th>#</th><th>City</th><th>Leg Distance (km)</th></tr>
+        </thead>
+        <tbody id="berlin-route-body"></tbody>
+      </table>
+      <p class="hint" id="berlin-route-total"></p>
+    </div>
+
+    <h2 style="margin:14px 0 8px; font-size:16px;">Food Purchases</h2>
+    <div id="berlin-foods"></div>
+    <p class="hint" id="berlin-food-total"></p>
   </div>
 </section>
 
