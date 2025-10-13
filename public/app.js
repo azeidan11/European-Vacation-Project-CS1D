@@ -129,7 +129,7 @@ function renderFoodsTable() {
     if (hintEl) {
       hintEl.textContent = getSortedFoodCities().length
         ? FOODS_HINT_DEFAULT
-        : "Import data or add foods to get started.";
+        : "Add foods in Maintenance to get started.";
     }
     highlightFoodsCityButtons();
     return;
@@ -323,10 +323,6 @@ function initMaintenance() {
   const loginHint = document.getElementById('maint-login-hint');
   const lockBtn = document.getElementById('maint-lock-btn');
 
-  const importFile = document.getElementById('maint-import-file');
-  const importBtn = document.getElementById('maint-import-btn');
-  const importStatus = document.getElementById('maint-import-status');
-
   const priceCitySel = document.getElementById('maint-price-city');
   const priceItemSel = document.getElementById('maint-price-item');
   const priceInput = document.getElementById('maint-price-value');
@@ -362,7 +358,6 @@ function initMaintenance() {
       populateSelectors();
     }
     if (loginHint) loginHint.textContent = '';
-    setStatus(importStatus, '');
     setStatus(priceStatus, '');
     setStatus(addStatus, '');
     setStatus(deleteStatus, '');
@@ -464,51 +459,6 @@ function initMaintenance() {
     deleteCitySel.addEventListener('change', () => {
       updateItemsFor(deleteCitySel, deleteItemSel);
       setStatus(deleteStatus, '');
-    });
-  }
-
-  if (importBtn) {
-    importBtn.addEventListener('click', () => {
-      if (requireUnlock(importStatus)) return;
-      if (!importFile || !importFile.files || !importFile.files.length) {
-        setStatus(importStatus, 'Choose a CSV or text file to import.', true);
-        return;
-      }
-      const file = importFile.files[0];
-      const reader = new FileReader();
-      reader.onload = evt => {
-        const text = evt.target && typeof evt.target.result === 'string' ? evt.target.result : '';
-        const summary = importFoodsCsv(text);
-        // Persist changes from import
-        persistFoodsChanges();
-        const parts = [];
-        if (summary.addedCities.size) {
-          parts.push(`${summary.addedCities.size} new ${summary.addedCities.size === 1 ? 'city' : 'cities'}`);
-        }
-        if (summary.addedItems) {
-          parts.push(`${summary.addedItems} item(s) added`);
-        }
-        if (summary.updatedItems) {
-          parts.push(`${summary.updatedItems} item(s) updated`);
-        }
-        if (!parts.length) {
-          parts.push('File processed with no changes');
-        }
-        let message = parts.join(', ') + '.';
-        if (summary.errors.length) {
-          message += ` ${summary.errors.length} line(s) skipped.`;
-          console.warn('Import skipped lines:', summary.errors);
-        }
-        setStatus(importStatus, message, summary.errors.length > 0);
-        if (importFile) importFile.value = '';
-        populateSelectors();
-        const firstTouched = summary.touchedCities.size ? Array.from(summary.touchedCities)[0] : undefined;
-        refreshFoodsUI(firstTouched);
-      };
-      reader.onerror = () => {
-        setStatus(importStatus, 'Unable to read the selected file.', true);
-      };
-      reader.readAsText(file);
     });
   }
 
@@ -671,16 +621,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('Foods CSV did not finish loading before initialization.', e);
   }
   if (!hasFoodsData()) {
-    console.warn('No foods data is available after attempting to load the CSV. The foods view will remain empty until data is imported.');
+    console.warn('No foods data is available after attempting to load the CSV. The foods view will remain empty until data is added manually.');
   }
   try { initFoods(); } catch (e) { console.error(e); }
   // Preload edge distances so Paris/London/custom planners can use spreadsheet distances
   try {
-    const csvLoaded = await loadEdgeDistancesCSV([
-      './server/European Distances and Foods.csv',
-      './European Distances and Foods.csv',
-      '../European Distances and Foods.csv'
-    ]);
+    const csvLoaded = await loadEdgeDistancesCSV();
     if (!csvLoaded) {
       console.warn('Distance CSV could not be loaded from any known path.');
     }
@@ -891,7 +837,11 @@ function csvDistanceBetweenCities(aName, bName) {
   return Number.isFinite(v) && v >= 0 ? v : Infinity;
 }
 
-async function loadEdgeDistancesCSV(paths = './server/European Distances and Foods.csv') {
+async function loadEdgeDistancesCSV(paths = [
+  '../European Distances and Foods.csv',
+  './European Distances and Foods.csv',
+  './server/European Distances and Foods.csv'
+]) {
   const candidates = Array.isArray(paths) ? paths : [paths];
   let lastError = null;
   edgeResetDistances();
@@ -1003,7 +953,7 @@ function buildMatrix(cities, opts = {}) {
   return M;
 }
 
-// Nearest Neighbor from fixed start at index 0 (Paris)
+// Nearest Neighbor from fixed start at index 0 (start city)
 function nearestNeighborOrder(M) {
   const n = M.length;
   const visited = Array(n).fill(false);
@@ -1149,6 +1099,7 @@ function initBerlinPlan() {
   if (!btn || !routeBody || !routeTotalEl || !foodsMount || !foodTotalEl) return;
 
   const recomputeFoodTotal = () => {
+    if (!hasFoodsData()) return;
     const foodUSD = LON_computeFoodTotalUSD('#berlin-foods');
     foodTotalEl.textContent = `Food total: $${foodUSD.toFixed(2)}`;
   };
@@ -1157,45 +1108,42 @@ function initBerlinPlan() {
     routeBody.innerHTML = '';
     routeTotalEl.textContent = '';
     foodsMount.innerHTML = '';
-    foodTotalEl.textContent = 'Food total: $0.00';
+    foodTotalEl.textContent = hasFoodsData() ? 'Food total: $0.00' : 'Food data unavailable.';
     if (!EDGE_DIST.Ready) {
       routeTotalEl.textContent = 'Distance data is still loading from the CSV. Please try again shortly.';
       return;
     }
 
-    if (!hasFoodsData()) {
-      routeTotalEl.textContent = 'Food data is still loading from the CSV. Please try again shortly.';
-      return;
-    }
-
-    const csvCities = EDGE_DIST.CityNames.slice();
+    const csvCities = EDGE_DIST.CityNames.filter(Boolean);
     if (!csvCities.length) {
       routeTotalEl.textContent = 'No cities are available in the distance CSV.';
       return;
     }
 
-    const availableCities = csvCities.filter(name => name && (foodsData[name] && foodsData[name].length));
-    if (!availableCities.includes('Berlin')) {
+    if (!csvCities.includes('Berlin')) {
       routeTotalEl.textContent = 'Berlin is not present in the loaded CSV datasets.';
       return;
     }
 
-    const orderedSet = new Set();
-    orderedSet.add('Berlin');
-    BERLIN_PLAN_CITIES.forEach(name => {
-      if (availableCities.includes(name)) orderedSet.add(name);
-    });
-    availableCities.forEach(name => orderedSet.add(name));
-    const orderedCities = Array.from(orderedSet);
+    const neighborStats = csvCities
+      .filter(name => name !== 'Berlin')
+      .map(name => ({
+        name,
+        dist: csvDistanceBetweenCities('Berlin', name)
+      }));
+    const reachable = neighborStats
+      .filter(entry => Number.isFinite(entry.dist) && entry.dist > 0)
+      .sort((a, b) => a.dist - b.dist);
+    const skipped = neighborStats
+      .filter(entry => !Number.isFinite(entry.dist) || entry.dist <= 0)
+      .map(entry => entry.name);
+    const orderedCities = ['Berlin', ...reachable.map(entry => entry.name)];
 
     if (orderedCities.length < 2) {
-      routeTotalEl.textContent = 'Not enough cities with CSV distance and food data to build a Berlin route.';
-      return;
-    }
-
-    const missingCities = orderedCities.filter(city => EDGE_DIST.CityIndex[city] === undefined);
-    if (missingCities.length) {
-      routeTotalEl.textContent = `Missing CSV distance data for: ${missingCities.join(', ')}.`;
+      const reason = skipped.length
+        ? ` Missing Berlin distances for: ${skipped.join(', ')}.`
+        : '';
+      routeTotalEl.textContent = `Not enough cities with CSV distance data to build a Berlin route.${reason}`;
       return;
     }
 
@@ -1214,12 +1162,23 @@ function initBerlinPlan() {
       return;
     }
 
-    let order = nearestNeighborOrder(M);
-    order = twoOptOpen(order, M, 1500);
+    const order = nearestNeighborOrder(M);
+    if (order.length !== orderedCities.length) {
+      routeTotalEl.textContent = 'Unable to compute a full route with the available CSV distances.';
+      return;
+    }
+
     renderBerlinRoute(routeBody, routeTotalEl, orderedCities, order, M);
     const routeCities = order.map(idx => orderedCities[idx]);
-    LON_renderFoods(routeCities, recomputeFoodTotal, '#berlin-foods');
-    recomputeFoodTotal();
+    if (hasFoodsData()) {
+      LON_renderFoods(routeCities, recomputeFoodTotal, '#berlin-foods');
+      recomputeFoodTotal();
+    } else {
+      foodsMount.innerHTML = '<p class="hint">Food data is unavailable. Add foods in Maintenance to see suggested purchases.</p>';
+    }
+    if (skipped.length) {
+      routeTotalEl.textContent += ` Skipped cities missing Berlin distances: ${skipped.join(', ')}.`;
+    }
   });
 
   berlinInitDone = true;
