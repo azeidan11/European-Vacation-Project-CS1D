@@ -678,7 +678,18 @@ async function loadDistances() {
 document.addEventListener('DOMContentLoaded', async () => {
   try { initFoods(); } catch (e) { console.error(e); }
   // Preload edge distances so Paris/London/custom planners can use spreadsheet distances
-  try { await loadEdgeDistancesCSV('./server/European Distances and Foods.csv'); } catch (e) { console.warn(e); }
+  try {
+    const csvLoaded = await loadEdgeDistancesCSV([
+      './server/European Distances and Foods.csv',
+      './European Distances and Foods.csv',
+      '../European Distances and Foods.csv'
+    ]);
+    if (!csvLoaded) {
+      console.warn('Distance CSV could not be loaded from any known path.');
+    }
+  } catch (e) {
+    console.warn(e);
+  }
   const initial = (location.hash || '#home').slice(1) || 'home';
   show(initial);
 });
@@ -788,15 +799,16 @@ function initCustomPlan() {
 const PLAN_CITIES = [
   // Paris is fixed start; rest will be visited efficiently
   "Paris",
-  "Amsterdam", "Brussels", "London", "Madrid", "Rome",
-  "Vienna", "Prague", "Zurich", "Budapest", "Copenhagen", "Lisbon"
+  "Amsterdam", "Berlin", "Brussels", "Budapest", "Hamburg",
+  "Lisbon", "London", "Madrid", "Prague", "Rome"
 ];
 
 // --- Edge-list distance graph from CSV (Starting City, Ending City, Kilometers) ---
 const EDGE_DIST = {
   CityIndex: Object.create(null), // name -> index
   CityNames: [],                  // index -> name
-  Dist: []                        // NxN matrix (km); Infinity if unknown; 0 on diagonal
+  Dist: [],                       // NxN matrix (km); Infinity if unknown; 0 on diagonal
+  Ready: false                    // becomes true after CSV distances load successfully
 };
 
 function edgeEnsureCity(name) {
@@ -809,6 +821,13 @@ function edgeEnsureCity(name) {
   EDGE_DIST.Dist.push(Array(idx + 1).fill(Infinity));
   EDGE_DIST.Dist[idx][idx] = 0;
   return idx;
+}
+
+function edgeResetDistances() {
+  EDGE_DIST.CityIndex = Object.create(null);
+  EDGE_DIST.CityNames = [];
+  EDGE_DIST.Dist = [];
+  EDGE_DIST.Ready = false;
 }
 
 function edgeSetDistance(a, b, km) {
@@ -836,41 +855,68 @@ function distanceBetweenCities(aName, bName) {
   return Infinity;
 }
 
-async function loadEdgeDistancesCSV(path = './server/European Distances and Foods.csv') {
-  try {
-    const res = await fetch(path, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
+function csvDistanceBetweenCities(aName, bName) {
+  if (aName === bName) return 0;
+  const ai = EDGE_DIST.CityIndex[aName];
+  const bi = EDGE_DIST.CityIndex[bName];
+  if (ai === undefined || bi === undefined) return Infinity;
+  const row = EDGE_DIST.Dist[ai];
+  if (!row) return Infinity;
+  const v = row[bi];
+  return Number.isFinite(v) && v >= 0 ? v : Infinity;
+}
 
-    const lines = text.trim().split(/\r?\n/);
-    if (!lines.length) return;
+async function loadEdgeDistancesCSV(paths = './server/European Distances and Foods.csv') {
+  const candidates = Array.isArray(paths) ? paths : [paths];
+  let lastError = null;
+  edgeResetDistances();
 
-    // Expect header: Starting City,Ending City,Kilometers
-    const header = lines[0].split(',').map(s => s.trim().toLowerCase());
-    const si = header.indexOf('starting city');
-    const ei = header.indexOf('ending city');
-    const ki = header.indexOf('kilometers');
-    if (si === -1 || ei === -1 || ki === -1) {
-      console.warn('Edge CSV header not recognized:', header);
-      return;
+  for (const path of candidates) {
+    try {
+      const res = await fetch(path, { cache: 'no-store' });
+      if (!res.ok) {
+        lastError = new Error(`HTTP ${res.status} for ${path}`);
+        continue;
+      }
+      const text = await res.text();
+      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      if (!lines.length) continue;
+
+      const header = lines[0].split(',').map(s => s.trim().toLowerCase());
+      const si = header.indexOf('starting city');
+      const ei = header.indexOf('ending city');
+      const ki = header.indexOf('kilometers');
+      if (si === -1 || ei === -1 || ki === -1) {
+        lastError = new Error(`Edge CSV header not recognized for ${path}`);
+        continue;
+      }
+
+      for (let r = 1; r < lines.length; r++) {
+        const raw = lines[r].trim();
+        if (!raw) continue;
+        const parts = raw.split(',');
+        if (parts.length < 3) continue;
+        const start = (parts[si] || '').trim();
+        const end   = (parts[ei] || '').trim();
+        const km    = parseFloat(String(parts[ki]).replace(/[^0-9.\\-]/g, ''));
+        if (!start || !end || !Number.isFinite(km)) continue;
+        edgeSetDistance(start, end, km);
+      }
+
+      EDGE_DIST.Ready = EDGE_DIST.CityNames.length > 0;
+      if (EDGE_DIST.Ready) {
+        console.log(`Loaded edge distances for ${EDGE_DIST.CityNames.length} cities from ${path}`);
+        return true;
+      }
+    } catch (e) {
+      lastError = e;
     }
-
-    for (let r = 1; r < lines.length; r++) {
-      const raw = lines[r].trim();
-      if (!raw) continue;
-      const parts = raw.split(',');
-      if (parts.length < 3) continue;
-      const start = (parts[si] || '').trim();
-      const end   = (parts[ei] || '').trim();
-      const km    = parseFloat(String(parts[ki]).replace(/[^0-9.\\-]/g, ''));
-      if (!start || !end || !Number.isFinite(km)) continue;
-      edgeSetDistance(start, end, km);
-    }
-
-    console.log(`Loaded edge distances for ${EDGE_DIST.CityNames.length} cities`);
-  } catch (e) {
-    console.warn('Failed to load edge distance CSV:', e);
   }
+
+  if (lastError) {
+    console.warn('Failed to load edge distance CSV:', lastError);
+  }
+  return false;
 }
 
 // Latitude/Longitude (approximate city centers)
@@ -917,12 +963,15 @@ function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
-function buildMatrix(cities) {
+function buildMatrix(cities, opts = {}) {
+  const { csvOnly = false } = opts;
   const n = cities.length;
   const M = Array.from({ length: n }, () => Array(n).fill(0));
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      const dij = distanceBetweenCities(cities[i], cities[j]);
+      const dij = csvOnly
+        ? csvDistanceBetweenCities(cities[i], cities[j])
+        : distanceBetweenCities(cities[i], cities[j]);
       M[i][j] = M[j][i] = dij;
     }
   }
@@ -941,6 +990,9 @@ function nearestNeighborOrder(M) {
     for (let j=0;j<n;j++) if (!visited[j]) {
       const d = M[last][j];
       if (d < bestD) { bestD = d; best = j; }
+    }
+    if (best === -1 || !Number.isFinite(bestD)) {
+      break;
     }
     visited[best] = true; order.push(best);
   }
@@ -1014,10 +1066,46 @@ function initPlan() {
   const btn = document.getElementById('plan-btn');
   if (!btn) return;
   btn.addEventListener('click', () => {
+    const tbody = document.getElementById('plan-body');
+    const totalP = document.getElementById('plan-total');
+    if (!tbody || !totalP) return;
+
+    tbody.innerHTML = '';
+    totalP.textContent = '';
+
+    if (!EDGE_DIST.Ready) {
+      totalP.textContent = 'Distance data is still loading from the CSV. Please try again shortly.';
+      return;
+    }
+
     const cities = PLAN_CITIES.slice();
-    const M = buildMatrix(cities);
-    let order = nearestNeighborOrder(M);
-    order = twoOptOpen(order, M, 1500);
+    const missingCities = cities.filter(city => EDGE_DIST.CityIndex[city] === undefined);
+    if (missingCities.length) {
+      totalP.textContent = `Missing CSV distance data for: ${missingCities.join(', ')}.`;
+      return;
+    }
+
+    const M = buildMatrix(cities, { csvOnly: true });
+    let gap = null;
+    for (let i = 0; i < cities.length && !gap; i++) {
+      for (let j = i + 1; j < cities.length; j++) {
+        if (!Number.isFinite(M[i][j]) || M[i][j] <= 0) {
+          gap = [cities[i], cities[j]];
+          break;
+        }
+      }
+    }
+    if (gap) {
+      totalP.textContent = `Missing distance between ${gap[0]} and ${gap[1]} in the CSV dataset.`;
+      return;
+    }
+
+    const order = nearestNeighborOrder(M);
+    if (order.length !== cities.length) {
+      totalP.textContent = 'Unable to compute a full route with the available CSV distances.';
+      return;
+    }
+
     renderPlan(cities, order, M);
   });
   planInitDone = true;
