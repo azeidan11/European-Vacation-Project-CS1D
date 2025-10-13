@@ -577,35 +577,58 @@ async function loadDistances() {
   const hint = document.getElementById("dist-hint");
   const tbody = document.getElementById("dist-body");
   try {
-    // NOTE the ./ prefix; Live Server will serve /server/distances.csv at /server/distances.csv
-    const res = await fetch("./server/distances.csv", { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-
-    const lines = text.trim().split(/\r?\n/);
-    if (lines.length < 2) throw new Error("CSV has no rows");
-
-    // Expect header: City,DistanceFromBerlin(km)
-    tbody.innerHTML = "";
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      const comma = line.indexOf(",");
-      if (comma < 0) continue;
-
-      const city = line.slice(0, comma).trim();
-      const dist = line.slice(comma + 1).trim().replace(/[^0-9]/g, "");
-      if (!city || !dist) continue;
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${city}</td><td>${dist}</td>`;
-      tbody.appendChild(tr);
+    if (!EDGE_DIST.Ready) {
+      const csvOk = await loadEdgeDistancesCSV();
+      if (!csvOk) {
+        if (hint) {
+          hint.textContent = "Distance data could not be loaded from the spreadsheet.";
+        }
+        return;
+      }
     }
-    hint.textContent = "Loaded City / DistanceFromBerlin (km).";
+
+    const berlinIndex = EDGE_DIST.CityIndex['Berlin'];
+    if (berlinIndex === undefined) {
+      if (hint) {
+        hint.textContent = "Berlin is not present in the distance CSV.";
+      }
+      return;
+    }
+
+    const rows = [];
+    for (let i = 0; i < EDGE_DIST.CityNames.length; i++) {
+      if (i === berlinIndex) continue;
+      const city = EDGE_DIST.CityNames[i];
+      const distance = EDGE_DIST.Dist[berlinIndex][i];
+      if (!city || !Number.isFinite(distance) || distance <= 0) continue;
+      rows.push({ city, distance });
+    }
+
+    rows.sort((a, b) => a.distance - b.distance || a.city.localeCompare(b.city));
+
+    if (tbody) {
+      tbody.innerHTML = "";
+      rows.forEach(({ city, distance }) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${city}</td><td>${Math.round(distance)}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    if (hint) {
+      if (!rows.length) {
+        hint.textContent = "No Berlin distance entries were found in the CSV.";
+      } else {
+        hint.textContent = "Loaded City / DistanceFromBerlin (km) from the spreadsheet.";
+      }
+    }
+
     loaded = true;
   } catch (err) {
     console.error(err);
-    hint.textContent = "";
+    if (hint) {
+      hint.textContent = "Unable to display Berlin distances from the CSV.";
+    }
   }
 }
 
