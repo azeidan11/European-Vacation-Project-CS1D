@@ -1148,7 +1148,7 @@ const LON_START = "London";
 // Cities available for selection (ensure they exist in CITY_LATLON and ideally foodsData)
 const LON_CHOOSABLE_CITIES = [
   "Paris","Amsterdam","Brussels","Madrid","Rome",
-  "Vienna","Prague","Zurich","Budapest","Copenhagen","Lisbon","Hamburg"
+  "Prague","Budapest","Hamburg","Lisbon","Berlin"
 ];
 
 // Fallback for lat/lon if not already defined somewhere else
@@ -1237,28 +1237,26 @@ function LON_haversineKm(a, b) {
 }
 
 function LON_buildMatrix(cities) {
-  // Use the CSV-aware global buildMatrix (falls back to haversine when needed)
-  return buildMatrix(cities);
+  // Require CSV distances for the London planner
+  return buildMatrix(cities, { csvOnly: true });
 }
 
 // Build a greedy path that always visits the closest unvisited city next
 function LON_planGreedy(count) {
-  const usableCities = LON_CHOOSABLE_CITIES.filter(city => CITY_LATLON[city]);
-  const desired = Math.min(Math.max(1, count || 0), usableCities.length + 1);
-  if (desired <= 0) return [];
+  const clamped = Math.max(1, Math.min(count || 0, LON_CHOOSABLE_CITIES.length + 1));
+  if (clamped <= 1) return [LON_START];
 
   const route = [LON_START];
-  if (desired === 1) return route;
-
-  const remaining = usableCities.slice();
+  const remaining = LON_CHOOSABLE_CITIES.slice();
   let current = LON_START;
 
-  while (route.length < desired && remaining.length) {
+  while (route.length < clamped && remaining.length) {
     let bestIdx = -1;
     let bestDist = Infinity;
     for (let i = 0; i < remaining.length; i++) {
       const candidate = remaining[i];
-      const dist = distanceBetweenCities(current, candidate);
+      const dist = csvDistanceBetweenCities(current, candidate);
+      if (!Number.isFinite(dist) || dist === Infinity) continue;
       if (dist < bestDist) {
         bestDist = dist;
         bestIdx = i;
@@ -1266,10 +1264,8 @@ function LON_planGreedy(count) {
     }
 
     if (bestIdx === -1) break;
-
-    const nextCity = remaining.splice(bestIdx, 1)[0];
-    route.push(nextCity);
-    current = nextCity;
+    current = remaining.splice(bestIdx, 1)[0];
+    route.push(current);
   }
 
   return route;
@@ -1323,17 +1319,36 @@ function LON_renderRoute(cities, order, M) {
   const totalP = document.getElementById('lon-route-total');
   tbody.innerHTML = '';
   let totalKm = 0;
+  let missing = false;
+
   for (let i=0;i<order.length;i++) {
     const idx = order[i];
     const city = cities[idx];
-    const leg = i===0 ? 0 : M[order[i-1]][idx];
-    if (i>0) totalKm += leg;
+    let legDisplay = '-';
+
+    if (i>0) {
+      const leg = M[order[i-1]][idx];
+      if (Number.isFinite(leg) && leg >= 0) {
+        totalKm += leg;
+        legDisplay = Math.round(leg);
+      } else {
+        missing = true;
+        legDisplay = 'N/A';
+      }
+    }
+
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${i+1}</td><td>${city}</td><td>${i===0?'-':Math.round(leg)}</td>`;
+    tr.innerHTML = `<td>${i+1}</td><td>${city}</td><td>${legDisplay}</td>`;
     tbody.appendChild(tr);
   }
-  totalP.textContent = `Total distance (no return to start): ${Math.round(totalKm)} km`;
-  return totalKm;
+
+  if (missing) {
+    totalP.textContent = `Distance data missing for one or more legs in the spreadsheet. Planned stops: ${cities.length}.`;
+  } else {
+    totalP.textContent = `Total distance (no return to start): ${Math.round(totalKm)} km across ${cities.length} cities.`;
+  }
+
+  return { totalKm, missing };
 }
 
 // Simple price parser like "$12.50" -> 12.50
@@ -1426,8 +1441,7 @@ function initLondonPlan() {
   const foodTotalEl = document.getElementById('lon-food-total');
   const grandTotalEl = document.getElementById('lon-grand-total');
   const planBtn = document.getElementById('lon-plan-btn');
-  const usableCount = LON_CHOOSABLE_CITIES.filter(city => CITY_LATLON[city]).length;
-  const maxVisit = Math.min(12, usableCount); // up to 12 cities NOT including London
+  const maxVisit = Math.min(12, LON_CHOOSABLE_CITIES.length + 1); // including London
   if (countEl) {
     countEl.max = maxVisit;
     if (!countEl.value) {
@@ -1435,7 +1449,7 @@ function initLondonPlan() {
     }
   }
   if (rangeEl) {
-    rangeEl.textContent = `Choose between 1 and ${maxVisit} cities to visit (not including London).`;
+    rangeEl.textContent = `Choose between 1 and ${maxVisit} cities to visit (including London).`;
   }
   if (listEl) {
     listEl.textContent = `Other cities considered: ${LON_CHOOSABLE_CITIES.join(', ')}.`;
@@ -1464,26 +1478,18 @@ function initLondonPlan() {
       if (!routeBody || !routeTotalEl || !foodMount) return;
 
       let requested = parseInt(countEl ? countEl.value : '0', 10);
-if (isNaN(requested) || requested < 1) {
-  routeBody.innerHTML = '';
-  routeTotalEl.textContent = 'Enter how many cities you want to visit (minimum 1).';
-  foodMount.innerHTML = '';
-  if (foodTotalEl) foodTotalEl.textContent = '';
-  if (grandTotalEl) grandTotalEl.textContent = '';
-  lastTotalKm = 0;
-  return;
-}
+      if (isNaN(requested) || requested < 1) {
+        routeBody.innerHTML = '';
+        routeTotalEl.textContent = 'Enter how many cities you want to visit (minimum 1).';
+        foodMount.innerHTML = '';
+        if (foodTotalEl) foodTotalEl.textContent = '';
+        if (grandTotalEl) grandTotalEl.textContent = '';
+        lastTotalKm = 0;
+        return;
+      }
 
-// cap to 12 cities (excluding London)
-const maxCities = 12;
-requested = Math.min(requested, maxCities);
-
-// always ensure Hamburg is considered as a potential nearby city
-if (!LON_CHOOSABLE_CITIES.includes('Hamburg')) {
-  LON_CHOOSABLE_CITIES.push('Hamburg');
-}
-
-      const targetCount = Math.min(requested, maxCities);
+      const maxCities = Math.min(12, LON_CHOOSABLE_CITIES.length + 1);
+      const targetCount = Math.min(Math.max(1, requested), maxCities);
       if (countEl) {
         countEl.value = String(targetCount);
       }
@@ -1501,20 +1507,30 @@ if (!LON_CHOOSABLE_CITIES.includes('Hamburg')) {
 
       const M = LON_buildMatrix(routeCities);
       const order = routeCities.map((_, idx) => idx);
-      const totalKm = LON_renderRoute(routeCities, order, M);
-      lastTotalKm = totalKm;
-      routeTotalEl.textContent += ` across ${routeCities.length} cities.`;
+      const { totalKm, missing } = LON_renderRoute(routeCities, order, M);
+      const messages = [];
+      if (missing) {
+        lastTotalKm = 0;
+        routeTotalEl.textContent = `Some legs are missing distance data in the CSV, so the total distance cannot be calculated. Planned stops: ${routeCities.length}.`;
+      } else {
+        lastTotalKm = totalKm;
+        routeTotalEl.textContent = `Total distance (no return to start): ${Math.round(totalKm)} km across ${routeCities.length} cities.`;
+      }
 
       LON_renderFoods(routeCities, recomputeGrand, '#lon-foods');
       recomputeGrand();
 
       if (requested > maxCities) {
-        routeTotalEl.textContent += ` Only ${maxCities} cities are available for this planner.`;
-      } else if (routeCities.length < requested) {
+        messages.push(`Only ${maxCities} cities are available for this planner.`);
+      }
+      if (routeCities.length < requested) {
         if (countEl) {
           countEl.value = String(routeCities.length);
         }
-        routeTotalEl.textContent += ` Only ${routeCities.length} cities have distance data.`;
+        messages.push(`Only ${routeCities.length} cities have distance data.`);
+      }
+      if (messages.length) {
+        routeTotalEl.textContent += ` ${messages.join(' ')}`;
       }
     });
   }
