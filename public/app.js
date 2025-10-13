@@ -17,94 +17,21 @@ function show(route) {
 
 // --- Foods data (parsed from the provided spreadsheet; up to six items per city) ---
 const FOODS_HINT_DEFAULT = "Click a city to view up to six traditional foods and prices in USD.";
+const FOODS_SOURCE_PATHS = [
+  './server/European_Foods.csv',
+  './European_Foods.csv',
+  '../European_Foods.csv'
+];
 
-let foodsData = window.foodsData || {
-  "Amsterdam": [
-    { item: "Stroopwafel", price: "$5.76" },
-    { item: "Thick Dutch fries", price: "$3.21" },
-    { item: "Kibbeling", price: "$8.65" }
-  ],
-  "Berlin": [
-    { item: "Pretzels", price: "$4.00" },
-    { item: "Apfelstrudel", price: "$6.25" },
-    { item: "Berliner Pfannkuche", price: "$8.23" },
-    { item: "Schnitzel", price: "$9.79" }
-  ],
-  "Brussels": [
-    { item: "Belgian Waffles", price: "$4.56" },
-    { item: "Mussels & Fries", price: "$12.50" },
-    { item: "Speculoos", price: "$3.40" },
-    { item: "Chocolate Truffles", price: "$7.75" }
-  ],
- "Budapest": [
-    { item: "Goulash", price: "$9.10" },
-    { item: "Kürtőskalács (Chimney Cake)", price: "$4.20" },
-    { item: "Lángos", price: "$5.30" },
-    { item: "Dobos Torte", price: "$4.80" }
-  ],
-  "Hamburg": [
-    { item: "Franzbrötchen", price: "$3.10" },
-    { item: "Fischbrötchen", price: "$5.95" },
-    { item: "Labskaus", price: "$11.20" },
-    { item: "Rote Grütze", price: "$4.35" }
-  ],
-  "Lisbon": [
-    { item: "Pastel de Nata", price: "$2.10" },
-    { item: "Bifana", price: "$5.20" },
-    { item: "Bacalhau à Brás", price: "$10.60" }
-  ],
-  "London": [
-    { item: "Fish and Chips", price: "$11.40" },
-    { item: "Full English Breakfast", price: "$12.80" },
-    { item: "Sticky Toffee Pudding", price: "$6.90" }
-  ],
-  "Madrid": [
-    { item: "Churros con Chocolate", price: "$4.30" },
-    { item: "Bocadillo de Calamares", price: "$7.50" },
-    { item: "Tortilla Española", price: "$6.20" }
-  ],
-  "Paris": [
-    { item: "Crêpe", price: "$5.10" },
-    { item: "Croissant", price: "$2.40" },
-    { item: "Macarons", price: "$7.30" },
-    { item: "Onion Soup", price: "$9.80" }
-  ],
-  "Prague": [
-    { item: "Trdelník", price: "$4.00" },
-    { item: "Svíčková", price: "$10.90" },
-    { item: "Knedlíky", price: "$3.70" },
-    { item: "Palačinky", price: "$4.60" }
-  ],
-  "Rome": [
-    { item: "Margherita Pizza", price: "$9.00" },
-    { item: "Cacio e Pepe", price: "$11.20" },
-    { item: "Gelato", price: "$3.50" },
-    { item: "Tiramisu", price: "$5.80" },
-    { item: "Supplì", price: "$3.90" }
-  ],
-  "Stockholm": [
-    { item: "Köttbullar (Meatballs)", price: "$12.30" },
-    { item: "Cinnamon Bun (Kanelbulle)", price: "$3.90" },
-    { item: "Gravlax", price: "$10.50" }
-  ],
-  "Zurich": [
-    { item: "Rosti", price: "$8.50" },
-    { item: "Swiss Fondue", price: "$14.30" },
-    { item: "Luxemburgerli", price: "$5.60" }
-  ],
-  "Copenhagen": [
-    { item: "Smorrebrod", price: "$8.40" },
-    { item: "Frikadeller", price: "$9.25" },
-    { item: "Wienerbrod", price: "$4.05" }
-  ],
-  "Vienna": [
-    { item: "Sachertorte", price: "$6.80" },
-    { item: "Wiener Schnitzel", price: "$13.20" },
-    { item: "Kaiserschmarrn", price: "$7.10" }
-  ]
-};
+let foodsData = window.foodsData || {};
+let foodsLoadPromise = null;
+
+function hasFoodsData() {
+  return foodsData && typeof foodsData === 'object' && Object.keys(foodsData).length > 0;
+}
+
 // --- Persistence for foods data (autosave/load) ---
-const FOODS_STORAGE_KEY = 'evp_foods_v1';
+const FOODS_STORAGE_KEY = 'evp_foods_v2';
 function saveFoodsToStorage() {
   try {
     localStorage.setItem(FOODS_STORAGE_KEY, JSON.stringify(foodsData));
@@ -115,17 +42,23 @@ function saveFoodsToStorage() {
 function loadFoodsFromStorage() {
   try {
     const raw = localStorage.getItem(FOODS_STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) return false;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
       foodsData = parsed;
+      window.foodsData = foodsData;
+      return hasFoodsData();
     }
   } catch (e) {
     console.warn('Failed to load foods from storage', e);
   }
+  return false;
 }
-// Load any saved foods before exposing globally
-loadFoodsFromStorage();
+// Load any saved foods before exposing globally and remember if data already exists
+const foodsLoadedFromStorage = loadFoodsFromStorage();
+if (foodsLoadedFromStorage) {
+  foodsLoadPromise = Promise.resolve(true);
+}
 window.foodsData = foodsData;
 
 let foodsInitDone = false;
@@ -265,7 +198,7 @@ function formatUSD(value) {
   return `$${Math.max(0, num).toFixed(2)}`;
 }
 
-function importFoodsCsv(text) {
+function importFoodsCsv(text, target = foodsData) {
   const summary = {
     addedCities: new Set(),
     touchedCities: new Set(),
@@ -300,11 +233,11 @@ function importFoodsCsv(text) {
       summary.errors.push(`Line ${index + 1}: invalid price "${priceRaw}".`);
       return;
     }
-    if (!foodsData[city]) {
-      foodsData[city] = [];
+    if (!target[city]) {
+      target[city] = [];
       summary.addedCities.add(city);
     }
-    const cityItems = foodsData[city];
+    const cityItems = target[city];
     const existing = cityItems.find(entry => entry.item.toLowerCase() === itemName.toLowerCase());
     const formattedPrice = formatUSD(priceNumber);
     if (existing) {
@@ -319,6 +252,55 @@ function importFoodsCsv(text) {
   });
 
   return summary;
+}
+
+async function loadFoodsFromCsv(paths = FOODS_SOURCE_PATHS) {
+  const candidates = Array.isArray(paths) ? paths : [paths];
+  let lastError = null;
+
+  for (const path of candidates) {
+    try {
+      const res = await fetch(path, { cache: 'no-store' });
+      if (!res.ok) {
+        lastError = new Error(`HTTP ${res.status} for ${path}`);
+        continue;
+      }
+      const text = await res.text();
+      if (!text || !text.trim()) continue;
+
+      const nextFoods = {};
+      const summary = importFoodsCsv(text, nextFoods);
+      if (!Object.keys(nextFoods).length) {
+        lastError = new Error(`No usable food records found in ${path}`);
+        continue;
+      }
+
+      foodsData = nextFoods;
+      window.foodsData = foodsData;
+
+      if (summary.errors.length) {
+        console.warn(`Foods CSV import warnings for ${path}:`, summary.errors.join(' | '));
+      }
+
+      saveFoodsToStorage();
+
+      const cityCount = Object.keys(foodsData).length;
+      const itemCount = Object.values(foodsData).reduce((total, items) => total + items.length, 0);
+      console.log(`Loaded ${itemCount} food item(s) across ${cityCount} cit${cityCount === 1 ? 'y' : 'ies'} from ${path}.`);
+
+      if (foodsInitDone) {
+        refreshFoodsUI();
+      }
+      return true;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (lastError) {
+    console.warn('Failed to load foods CSV from known paths.', lastError);
+  }
+  return false;
 }
 
 const ADMIN_PASSWORD = "123";
@@ -676,6 +658,17 @@ async function loadDistances() {
 
 // Ensure foods list exists only after DOM is ready and foodsData is defined, then show initial route
 document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    if (!foodsLoadPromise) {
+      foodsLoadPromise = loadFoodsFromCsv();
+    }
+    await foodsLoadPromise;
+  } catch (e) {
+    console.warn('Foods CSV did not finish loading before initialization.', e);
+  }
+  if (!hasFoodsData()) {
+    console.warn('No foods data is available after attempting to load the CSV. The foods view will remain empty until data is imported.');
+  }
   try { initFoods(); } catch (e) { console.error(e); }
   // Preload edge distances so Paris/London/custom planners can use spreadsheet distances
   try {
@@ -1565,5 +1558,6 @@ function initLondonPlan() {
 
   lonInitDone = true;
 }
+
 
 
