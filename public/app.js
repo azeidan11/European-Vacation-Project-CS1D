@@ -65,6 +65,10 @@ let foodsInitDone = false;
 const foodsRefs = {};
 const foodsState = { selectedCity: null };
 
+function persistFoodsChanges() {
+  saveFoodsToStorage();
+}
+
 function getSortedFoodCities() {
   return Object.keys(foodsData).sort((a, b) => a.localeCompare(b));
 }
@@ -282,7 +286,7 @@ async function loadFoodsFromCsv(paths = FOODS_SOURCE_PATHS) {
         console.warn(`Foods CSV import warnings for ${path}:`, summary.errors.join(' | '));
       }
 
-      saveFoodsToStorage();
+      persistFoodsChanges();
 
       const cityCount = Object.keys(foodsData).length;
       const itemCount = Object.values(foodsData).reduce((total, items) => total + items.length, 0);
@@ -476,7 +480,7 @@ function initMaintenance() {
         const text = evt.target && typeof evt.target.result === 'string' ? evt.target.result : '';
         const summary = importFoodsCsv(text);
         // Persist changes from import
-        saveFoodsToStorage();
+        persistFoodsChanges();
         const parts = [];
         if (summary.addedCities.size) {
           parts.push(`${summary.addedCities.size} new ${summary.addedCities.size === 1 ? 'city' : 'cities'}`);
@@ -536,7 +540,7 @@ function initMaintenance() {
       }
       entry.price = formatUSD(parsed);
       // Persist price update
-      saveFoodsToStorage();
+      persistFoodsChanges();
       setStatus(priceStatus, `Price for "${itemName}" updated to ${entry.price}.`, false);
       if (priceInput) priceInput.value = '';
       populateSelectors();
@@ -571,7 +575,7 @@ function initMaintenance() {
       entries.push({ item: itemName, price: formatUSD(parsed) });
       entries.sort((a, b) => a.item.localeCompare(b.item));
       // Persist add
-      saveFoodsToStorage();
+      persistFoodsChanges();
       setStatus(addStatus, `Added "${itemName}" to ${city}.`, false);
       if (addItemInput) addItemInput.value = '';
       if (addPriceInput) addPriceInput.value = '';
@@ -602,7 +606,7 @@ function initMaintenance() {
       }
       entries.splice(index, 1);
       // Persist delete
-      saveFoodsToStorage();
+      persistFoodsChanges();
       setStatus(deleteStatus, `"${itemName}" removed from ${city}.`, false);
       populateSelectors();
       refreshFoodsUI(city);
@@ -1150,13 +1154,71 @@ function initBerlinPlan() {
   };
 
   btn.addEventListener('click', () => {
-    const cities = BERLIN_PLAN_CITIES.slice();
-    const M = buildMatrix(cities);
+    routeBody.innerHTML = '';
+    routeTotalEl.textContent = '';
+    foodsMount.innerHTML = '';
+    foodTotalEl.textContent = 'Food total: $0.00';
+    if (!EDGE_DIST.Ready) {
+      routeTotalEl.textContent = 'Distance data is still loading from the CSV. Please try again shortly.';
+      return;
+    }
+
+    if (!hasFoodsData()) {
+      routeTotalEl.textContent = 'Food data is still loading from the CSV. Please try again shortly.';
+      return;
+    }
+
+    const csvCities = EDGE_DIST.CityNames.slice();
+    if (!csvCities.length) {
+      routeTotalEl.textContent = 'No cities are available in the distance CSV.';
+      return;
+    }
+
+    const availableCities = csvCities.filter(name => name && (foodsData[name] && foodsData[name].length));
+    if (!availableCities.includes('Berlin')) {
+      routeTotalEl.textContent = 'Berlin is not present in the loaded CSV datasets.';
+      return;
+    }
+
+    const orderedSet = new Set();
+    orderedSet.add('Berlin');
+    BERLIN_PLAN_CITIES.forEach(name => {
+      if (availableCities.includes(name)) orderedSet.add(name);
+    });
+    availableCities.forEach(name => orderedSet.add(name));
+    const orderedCities = Array.from(orderedSet);
+
+    if (orderedCities.length < 2) {
+      routeTotalEl.textContent = 'Not enough cities with CSV distance and food data to build a Berlin route.';
+      return;
+    }
+
+    const missingCities = orderedCities.filter(city => EDGE_DIST.CityIndex[city] === undefined);
+    if (missingCities.length) {
+      routeTotalEl.textContent = `Missing CSV distance data for: ${missingCities.join(', ')}.`;
+      return;
+    }
+
+    const M = buildMatrix(orderedCities, { csvOnly: true });
+    let gap = null;
+    for (let i = 0; i < orderedCities.length && !gap; i++) {
+      for (let j = i + 1; j < orderedCities.length; j++) {
+        if (!Number.isFinite(M[i][j]) || M[i][j] <= 0) {
+          gap = [orderedCities[i], orderedCities[j]];
+          break;
+        }
+      }
+    }
+    if (gap) {
+      routeTotalEl.textContent = `Missing distance between ${gap[0]} and ${gap[1]} in the CSV dataset.`;
+      return;
+    }
+
     let order = nearestNeighborOrder(M);
     order = twoOptOpen(order, M, 1500);
-    renderBerlinRoute(routeBody, routeTotalEl, cities, order, M);
-    const orderedCities = order.map(idx => cities[idx]);
-    LON_renderFoods(orderedCities, recomputeFoodTotal, '#berlin-foods');
+    renderBerlinRoute(routeBody, routeTotalEl, orderedCities, order, M);
+    const routeCities = order.map(idx => orderedCities[idx]);
+    LON_renderFoods(routeCities, recomputeFoodTotal, '#berlin-foods');
     recomputeFoodTotal();
   });
 
