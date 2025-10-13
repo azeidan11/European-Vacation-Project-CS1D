@@ -711,8 +711,12 @@ function initCustomPlan() {
 
   if (!startSel || !listMount || !btn || !tbody || !totalEl || !foodsMount) return;
 
-  const allCities = Object.keys(CITY_LATLON);
-  allCities.sort((a,b)=>a.localeCompare(b));
+  if (!EDGE_DIST.Ready || EDGE_DIST.CityNames.length === 0) {
+    totalEl.textContent = 'Distance data is still loading from the CSV. Please try again shortly.';
+    return;
+  }
+
+  const allCities = EDGE_DIST.CityNames.slice().sort((a, b) => a.localeCompare(b));
 
   // Populate start select
   startSel.innerHTML = '';
@@ -721,7 +725,11 @@ function initCustomPlan() {
     opt.value = c; opt.textContent = c;
     startSel.appendChild(opt);
   });
-  if (allCities.includes('Paris')) startSel.value = 'Paris';
+  if (allCities.includes('Paris')) {
+    startSel.value = 'Paris';
+  } else if (allCities.length) {
+    startSel.value = allCities[0];
+  }
 
   // Populate destination checkboxes
   function renderCityChecks() {
@@ -753,17 +761,27 @@ function initCustomPlan() {
   function renderCustomRoute(cities, order, M) {
     tbody.innerHTML = '';
     let totalKm = 0;
+    let missing = false;
+
     for (let i=0;i<order.length;i++) {
       const idx = order[i];
       const city = cities[idx];
-      const leg = i===0 ? 0 : M[order[i-1]][idx];
-      if (i>0) totalKm += leg;
+      let legDisplay = '-';
+      if (i>0) {
+        const leg = M[order[i-1]][idx];
+        if (Number.isFinite(leg) && leg >= 0) {
+          totalKm += leg;
+          legDisplay = Math.round(leg);
+        } else {
+          missing = true;
+          legDisplay = 'N/A';
+        }
+      }
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${i+1}</td><td>${city}</td><td>${i===0?'-':Math.round(leg)}</td>`;
+      tr.innerHTML = `<td>${i+1}</td><td>${city}</td><td>${legDisplay}</td>`;
       tbody.appendChild(tr);
     }
-    totalEl.textContent = `Total distance (no return to start): ${Math.round(totalKm)} km`;
-    return totalKm;
+    return { totalKm, missing };
   }
 
   let lastKm = 0;
@@ -779,14 +797,24 @@ function initCustomPlan() {
   btn.addEventListener('click', () => {
     const start = startSel.value;
     const selected = Array.from(listMount.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-    const visit = selected.length ? selected : Array.from(listMount.querySelectorAll('input[type="checkbox"]')).map(cb => cb.value);
+    const visitCandidates = selected.length ? selected : Array.from(listMount.querySelectorAll('input[type="checkbox"]')).map(cb => cb.value);
+    const visit = Array.from(new Set(visitCandidates));
     const cities = [start, ...visit];
-    const M = buildMatrix(cities);
+    const M = buildMatrix(cities, { csvOnly: true });
     let order = nearestNeighborOrder(M); // starts at index 0
     order = twoOptOpen(order, M, 1000);
 
-    lastKm = renderCustomRoute(cities, order, M);
-    totalEl.textContent += ` across ${cities.length} cities.`;
+    const { totalKm, missing } = renderCustomRoute(cities, order, M);
+    if (missing) {
+      lastKm = 0;
+      totalEl.textContent = `Some legs are missing distance data in the CSV, so the total distance cannot be calculated. Planned stops: ${order.length}.`;
+    } else {
+      lastKm = totalKm;
+      totalEl.textContent = `Total distance (no return to start): ${Math.round(totalKm)} km across ${order.length} cities.`;
+    }
+    if (order.length < cities.length) {
+      totalEl.textContent += ` Only ${order.length} of ${cities.length} selected cities could be connected with CSV distance data.`;
+    }
 
     LON_renderFoods(cities, recomputeGrand, '#cus-foods');
     recomputeGrand();
