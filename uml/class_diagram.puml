@@ -1,0 +1,58 @@
+@startuml
+skinparam classAttributeIconSize 0
+hide empty members
+
+class City {
+  - name : String
+  - distanceFromBerlinKm : int
+  - lat : double
+  - lon : double
+  --
+  + getName() : String
+  + getFoods() : List<FoodItem>
+}
+
+class FoodItem {
+  - name : String
+  - priceUSD : double
+  --
+  + getName() : String
+  + getPriceUSD() : double
+}
+
+class Trip {
+  - startCity : City
+  - route : List<City>
+  - totalDistanceKm : double
+  --
+  + getRoute() : List<City>
+  + getTotalDistanceKm() : double
+}
+
+class Planner {
+  + nearestNeighbor(cities : List<City>, start : City) : List<City>
+  + twoOptImprove(route : List<City>) : List<City>
+  + haversineKm(aLat: double, aLon: double, bLat: double, bLon: double) : double
+  + computeTotalDistance(route : List<City>) : double
+}
+
+class DataStore {
+  + loadDistancesFromCSV(path : String) : List<City>
+  + loadFoodsFromCSV(path : String) : Map<String, List<FoodItem>>
+  + mergeFoodsIntoCities(cities : List<City>, foods : Map<String, List<FoodItem>>) : void
+}
+
+City "1" o-- "0..*" FoodItem : has
+Trip "1" o-- "1..*" City : route
+Planner ..> City
+Planner ..> Trip
+Planner ..> FoodItem
+DataStore ..> City
+DataStore ..> FoodItem
+
+note right of Planner
+Nearest Neighbor + 2-opt heuristic:
+1) Build initial route greedily
+2) Improve by swapping edges
+end note
+@enduml
