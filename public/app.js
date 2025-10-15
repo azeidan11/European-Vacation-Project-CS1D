@@ -1465,13 +1465,13 @@ function LON_renderFoods(visitedCities, onTotalsChanged, mountSelector = '#lon-f
       tr.innerHTML = `
         <td>${item}</td>
         <td>${price}</td>
-        <td><input type="number" min="0" max="9" value="0" style="width:60px; padding:2px 4px; border:1px solid #ddd; border-radius:6px;"></td>
+        <td><input type="number" min="0" max="12" value="0" style="width:60px; padding:2px 4px; border:1px solid #ddd; border-radius:6px;"></td>
         <td class="lon-sub">$0.00</td>
       `;
       const qtyEl = tr.querySelector('input');
       const subEl = tr.querySelector('.lon-sub');
       const recalc = () => {
-        const qty = Math.max(0, Math.min(9, parseInt(qtyEl.value || '0', 10) || 0));
+        const qty = Math.max(0, Math.min(12, parseInt(qtyEl.value || '0', 10) || 0));
         const sub = unit * qty;
         subEl.textContent = `$${sub.toFixed(2)}`;
         updateCitySummary();
