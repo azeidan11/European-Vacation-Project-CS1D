@@ -1,0 +1,35 @@
+# ---- Basics ----
+PROJECT_NAME           = "European Vacation Project"
+OUTPUT_DIRECTORY       = docs_out
+INPUT                  = docs/uml public
+RECURSIVE              = YES
+FILE_PATTERNS          = *.md *.puml *.js *.html *.css
+EXTENSION_MAPPING      = js=JavaScript
+
+EXTRACT_ALL            = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_TREEVIEW      = YES
+SOURCE_BROWSER         = YES
+SHOW_FILES             = YES
+
+# ---- Markdown ----
+USE_MDFILE_AS_MAINPAGE = docs/uml/README.md
+MARKDOWN_SUPPORT       = YES
+
+# ---- Graphs / Diagrams ----
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = png
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+INTERACTIVE_SVG        = NO
+
+# ---- PlantUML ----
+# Update this path if your PlantUML jar is installed elsewhere:
+PLANTUML_JAR_PATH      = /opt/homebrew/opt/plantuml/libexec/plantuml.jar
+PLANTUML_INCLUDE_PATH  = docs/uml
+
+# ---- HTML polish ----
+HTML_DYNAMIC_SECTIONS  = YES
+QUIET                  = NO
+WARN_IF_UNDOCUMENTED   = NO

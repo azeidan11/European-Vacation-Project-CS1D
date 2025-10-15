@@ -1,3 +1,8 @@
+/*!
+  @file styles.css
+  @brief Base styles for layout, tables, and cards.
+  @details Small-scale, responsive defaults for the SPA.
+*/
 :root { --ink:#111; --muted:#666; --line:#ddd; --bg:#fafafa; }
 * { box-sizing: border-box; }
 body { 

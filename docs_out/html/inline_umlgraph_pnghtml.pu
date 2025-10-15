@@ -1,0 +1,3 @@
+@startuml inline_umlgraph_1.png
+!include class_diagram/class_diagram.puml
+@enduml

@@ -1,4 +1,8 @@
-﻿
+﻿/**
+ * @file app.js
+ * @brief SPA logic: distances loader, foods UI, Paris/London/Custom planners.
+ * @details Includes nearest-neighbor + 2-opt route helpers and CSV parsing.
+ */
 // Simple two-page nav (Home / Distances)
 const routes = ["home", "distances", "foods", "plan", "plan-berlin", "plan-london", "plan-custom", "maintenance"];
 function show(route) {
